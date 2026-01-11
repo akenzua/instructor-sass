@@ -1,0 +1,43 @@
+import { NestFactory } from "@nestjs/core";
+import { ValidationPipe } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { AppModule } from "./app.module";
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule, {
+    rawBody: true, // Required for Stripe webhook signature verification
+  });
+
+  const configService = app.get(ConfigService);
+
+  // Enable CORS
+  app.enableCors({
+    origin: [
+      configService.get("INSTRUCTOR_APP_URL", "http://localhost:3001"),
+      configService.get("LEARNER_APP_URL", "http://localhost:3002"),
+    ],
+    credentials: true,
+  });
+
+  // Global validation pipe
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+    })
+  );
+
+  // API prefix
+  app.setGlobalPrefix("api");
+
+  const port = configService.get("PORT", 3000);
+  await app.listen(port);
+
+  console.log(`🚀 API running on http://localhost:${port}/api`);
+}
+
+bootstrap();

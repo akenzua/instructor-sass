@@ -1,0 +1,62 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  Request,
+} from "@nestjs/common";
+import { LearnersService } from "./learners.service";
+import { CreateLearnerDto, UpdateLearnerDto, LearnerQueryDto } from "./dto/learner.dto";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+
+@Controller("learners")
+@UseGuards(JwtAuthGuard)
+export class LearnersController {
+  constructor(private readonly learnersService: LearnersService) {}
+
+  @Post()
+  async create(
+    @Request() req: { user: { id: string } },
+    @Body() dto: CreateLearnerDto
+  ) {
+    return this.learnersService.create(req.user.id, dto);
+  }
+
+  @Get()
+  async findAll(
+    @Request() req: { user: { id: string } },
+    @Query() query: LearnerQueryDto
+  ) {
+    return this.learnersService.findAll(req.user.id, query);
+  }
+
+  @Get(":id")
+  async findById(
+    @Request() req: { user: { id: string } },
+    @Param("id") id: string
+  ) {
+    return this.learnersService.findById(req.user.id, id);
+  }
+
+  @Put(":id")
+  async update(
+    @Request() req: { user: { id: string } },
+    @Param("id") id: string,
+    @Body() dto: UpdateLearnerDto
+  ) {
+    return this.learnersService.update(req.user.id, id, dto);
+  }
+
+  @Delete(":id")
+  async delete(
+    @Request() req: { user: { id: string } },
+    @Param("id") id: string
+  ) {
+    return this.learnersService.delete(req.user.id, id);
+  }
+}
