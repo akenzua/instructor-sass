@@ -16,9 +16,7 @@ import {
 } from "@chakra-ui/react";
 import { Plus, Search } from "lucide-react";
 import { DataTable, PageHeader } from "@acme/ui";
-import { useAuth } from "@/lib/auth";
 import { useLearners } from "@/hooks";
-import { AppShell } from "@/components";
 import { CreateLearnerModal } from "./CreateLearnerModal";
 import type { Learner } from "@acme/shared";
 import type { Column } from "@acme/ui";
@@ -85,7 +83,6 @@ const columns: Column<Learner>[] = [
 
 export default function LearnersPage() {
   const router = useRouter();
-  const { instructor, isLoading: authLoading } = useAuth();
   const createModal = useDisclosure();
 
   const [search, setSearch] = useState("");
@@ -109,26 +106,12 @@ export default function LearnersPage() {
     status: statusFilter || undefined,
   });
 
-  useEffect(() => {
-    if (!authLoading && !instructor) {
-      router.push("/login");
-    }
-  }, [authLoading, instructor, router]);
-
   const handleRowClick = (learner: Learner) => {
     router.push(`/learners/${learner._id}`);
   };
 
-  if (authLoading || !instructor) {
-    return (
-      <Box minH="100vh" bg="bg.subtle" p={8}>
-        <Skeleton height="400px" />
-      </Box>
-    );
-  }
-
   return (
-    <AppShell>
+    <>
       <VStack spacing={6} align="stretch">
         <PageHeader
           title="Learners"
@@ -232,6 +215,6 @@ export default function LearnersPage() {
       </VStack>
 
       <CreateLearnerModal isOpen={createModal.isOpen} onClose={createModal.onClose} />
-    </AppShell>
+    </>
   );
 }

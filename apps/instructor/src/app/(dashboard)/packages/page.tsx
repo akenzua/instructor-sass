@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   Box,
   Button,
@@ -39,10 +38,8 @@ import {
 } from "@chakra-ui/react";
 import { Edit2, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@acme/ui";
-import { useAuth } from "@/lib/auth";
 import { usePackages } from "@/hooks";
 import { useCreatePackage, useUpdatePackage, useDeletePackage } from "@/hooks/mutations";
-import { AppShell } from "@/components";
 import type { Package } from "@/lib/api";
 
 interface PackageFormData {
@@ -64,9 +61,7 @@ const initialFormData: PackageFormData = {
 };
 
 export default function PackagesPage() {
-  const router = useRouter();
   const toast = useToast();
-  const { instructor, isLoading: authLoading } = useAuth();
   const modal = useDisclosure();
   const deleteModal = useDisclosure();
 
@@ -78,12 +73,6 @@ export default function PackagesPage() {
   const [editingPackage, setEditingPackage] = useState<Package | null>(null);
   const [deletingPackage, setDeletingPackage] = useState<Package | null>(null);
   const [formData, setFormData] = useState<PackageFormData>(initialFormData);
-
-  useEffect(() => {
-    if (!authLoading && !instructor) {
-      router.push("/login");
-    }
-  }, [authLoading, instructor, router]);
 
   const openCreateModal = () => {
     setEditingPackage(null);
@@ -172,20 +161,12 @@ export default function PackagesPage() {
       currency: "GBP",
     }).format(amount);
 
-  if (authLoading || !instructor) {
-    return (
-      <Box minH="100vh" bg="bg.subtle" p={8}>
-        <Skeleton height="400px" />
-      </Box>
-    );
-  }
-
   return (
-    <AppShell>
+    <>
       <VStack spacing={6} align="stretch">
         <PageHeader
           title="Packages"
-          subtitle="Create and manage lesson packages for your learners"
+          description="Create and manage lesson packages for your learners"
           actions={
             <Button
               leftIcon={<Plus size={16} />}
@@ -492,6 +473,6 @@ export default function PackagesPage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
-    </AppShell>
+    </>
   );
 }

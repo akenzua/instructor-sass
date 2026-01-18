@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   Box,
   Button,
@@ -23,10 +22,8 @@ import {
 } from "@chakra-ui/react";
 import { Plus, Trash2, Save } from "lucide-react";
 import { PageHeader } from "@acme/ui";
-import { useAuth } from "@/lib/auth";
 import { useWeeklyAvailability } from "@/hooks";
 import { useUpdateWeeklyAvailability } from "@/hooks/mutations";
-import { AppShell } from "@/components";
 
 const DAYS_OF_WEEK = [
   "monday",
@@ -60,9 +57,7 @@ interface DayAvailability {
 }
 
 export default function AvailabilityPage() {
-  const router = useRouter();
   const toast = useToast();
-  const { instructor, isLoading: authLoading } = useAuth();
   
   const { data: weeklyData, isLoading: dataLoading } = useWeeklyAvailability();
   const updateMutation = useUpdateWeeklyAvailability();
@@ -85,12 +80,6 @@ export default function AvailabilityPage() {
       setHasChanges(false);
     }
   }, [weeklyData]);
-
-  useEffect(() => {
-    if (!authLoading && !instructor) {
-      router.push("/login");
-    }
-  }, [authLoading, instructor, router]);
 
   const toggleDayAvailable = (dayOfWeek: string) => {
     setAvailability((prev) =>
@@ -164,20 +153,11 @@ export default function AvailabilityPage() {
     }
   };
 
-  if (authLoading || !instructor) {
-    return (
-      <Box minH="100vh" bg="bg.subtle" p={8}>
-        <Skeleton height="600px" />
-      </Box>
-    );
-  }
-
   return (
-    <AppShell>
-      <VStack spacing={6} align="stretch">
-        <PageHeader
+    <VStack spacing={6} align="stretch">
+      <PageHeader
           title="Availability"
-          subtitle="Set your weekly schedule for lessons"
+          description="Set your weekly schedule for lessons"
           actions={
             <Button
               leftIcon={<Save size={16} />}
@@ -274,6 +254,5 @@ export default function AvailabilityPage() {
           </Grid>
         )}
       </VStack>
-    </AppShell>
   );
 }

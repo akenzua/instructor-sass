@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
@@ -17,9 +17,8 @@ import {
 import { Plus, Search } from "lucide-react";
 import { DataTable, PageHeader } from "@acme/ui";
 import type { Column } from "@acme/ui";
-import { useAuth } from "@/lib/auth";
 import { useLessons } from "@/hooks";
-import { AppShell, LessonDrawer } from "@/components";
+import { LessonDrawer } from "@/components";
 import type { Lesson } from "@acme/shared";
 import { format } from "date-fns";
 
@@ -128,7 +127,6 @@ const columns: Column<Lesson>[] = [
 
 export default function LessonsPage() {
   const router = useRouter();
-  const { instructor, isLoading: authLoading } = useAuth();
   const drawer = useDisclosure();
 
   const [search, setSearch] = useState("");
@@ -144,27 +142,13 @@ export default function LessonsPage() {
     paymentStatus: paymentFilter || undefined,
   });
 
-  useEffect(() => {
-    if (!authLoading && !instructor) {
-      router.push("/login");
-    }
-  }, [authLoading, instructor, router]);
-
   const handleRowClick = (lesson: Lesson) => {
     setSelectedLesson(lesson);
     drawer.onOpen();
   };
 
-  if (authLoading || !instructor) {
-    return (
-      <Box minH="100vh" bg="bg.subtle" p={8}>
-        <Skeleton height="400px" />
-      </Box>
-    );
-  }
-
   return (
-    <AppShell>
+    <>
       <VStack spacing={6} align="stretch">
         <PageHeader
           title="Lessons"
@@ -291,6 +275,6 @@ export default function LessonsPage() {
           setSelectedLesson(null);
         }}
       />
-    </AppShell>
+    </>
   );
 }

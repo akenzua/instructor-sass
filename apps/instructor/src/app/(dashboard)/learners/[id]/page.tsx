@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   Box,
@@ -35,16 +35,14 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { LessonCard } from "@acme/ui";
-import { useAuth } from "@/lib/auth";
 import { useLearner, useLessons, useDeleteLearner } from "@/hooks";
-import { AppShell, LessonDrawer } from "@/components";
+import { LessonDrawer } from "@/components";
 import type { Lesson } from "@acme/shared";
 
 export default function LearnerDetailPage() {
   const router = useRouter();
   const params = useParams();
   const toast = useToast();
-  const { instructor, isLoading: authLoading } = useAuth();
   const drawer = useDisclosure();
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
 
@@ -56,12 +54,6 @@ export default function LearnerDetailPage() {
     limit: 50,
   });
   const deleteMutation = useDeleteLearner();
-
-  useEffect(() => {
-    if (!authLoading && !instructor) {
-      router.push("/login");
-    }
-  }, [authLoading, instructor, router]);
 
   const handleDelete = async () => {
     if (!confirm("Are you sure you want to delete this learner?")) return;
@@ -96,21 +88,13 @@ export default function LearnerDetailPage() {
     }).format(amount);
   };
 
-  if (authLoading || !instructor) {
-    return (
-      <Box minH="100vh" bg="bg.subtle" p={8}>
-        <Skeleton height="400px" />
-      </Box>
-    );
-  }
-
   const upcomingLessons =
     lessonsData?.items.filter((l) => l.status === "scheduled") || [];
   const pastLessons =
     lessonsData?.items.filter((l) => l.status !== "scheduled") || [];
 
   return (
-    <AppShell>
+    <>
       <VStack spacing={6} align="stretch">
         {/* Back Button */}
         <Button
@@ -360,6 +344,6 @@ export default function LearnerDetailPage() {
           setSelectedLesson(null);
         }}
       />
-    </AppShell>
+    </>
   );
 }

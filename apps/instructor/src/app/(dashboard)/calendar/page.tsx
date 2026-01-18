@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
@@ -13,9 +13,8 @@ import {
 import { startOfWeek, endOfWeek, addWeeks, subWeeks, format } from "date-fns";
 import { WeekCalendar, PageHeader } from "@acme/ui";
 import type { CalendarEvent, DayAvailability } from "@acme/ui";
-import { useAuth } from "@/lib/auth";
 import { useLessons, useWeeklyAvailability } from "@/hooks";
-import { AppShell, LessonDrawer, CreateLessonModal } from "@/components";
+import { LessonDrawer, CreateLessonModal } from "@/components";
 import type { Lesson } from "@acme/shared";
 
 const statusColorMap: Record<string, string> = {
@@ -38,7 +37,6 @@ const dayNameToNumber: Record<string, number> = {
 
 export default function CalendarPage() {
   const router = useRouter();
-  const { instructor, isLoading: authLoading } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [selectedSlotDate, setSelectedSlotDate] = useState<Date | null>(null);
@@ -57,12 +55,6 @@ export default function CalendarPage() {
 
   // Fetch weekly availability
   const { data: weeklyAvailability, isLoading: availabilityLoading } = useWeeklyAvailability();
-
-  useEffect(() => {
-    if (!authLoading && !instructor) {
-      router.push("/login");
-    }
-  }, [authLoading, instructor, router]);
 
   // Transform lessons to calendar events
   const events: CalendarEvent[] = useMemo(() => {
@@ -120,18 +112,10 @@ export default function CalendarPage() {
     createModal.onOpen();
   };
 
-  if (authLoading || !instructor) {
-    return (
-      <Box minH="100vh" bg="bg.subtle" p={8}>
-        <Skeleton height="600px" />
-      </Box>
-    );
-  }
-
   const isLoading = lessonsLoading || availabilityLoading;
 
   return (
-    <AppShell>
+    <>
       <VStack spacing={6} align="stretch" h="full">
         <PageHeader
           title="Calendar"
@@ -225,6 +209,6 @@ export default function CalendarPage() {
         }}
         selectedDate={selectedSlotDate}
       />
-    </AppShell>
+    </>
   );
 }

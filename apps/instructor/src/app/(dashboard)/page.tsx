@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import {
   Box,
   Grid,
@@ -15,31 +13,17 @@ import { Calendar, Users, DollarSign, Clock } from "lucide-react";
 import { MetricCard, PageHeader } from "@acme/ui";
 import { useAuth } from "@/lib/auth";
 import { useLessonStats, useLessons } from "@/hooks";
-import { AppShell } from "@/components/AppShell";
 import { UpcomingLessons } from "@/components/UpcomingLessons";
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const { instructor, isLoading: authLoading } = useAuth();
+  const { instructor } = useAuth();
   const { data: stats, isLoading: statsLoading } = useLessonStats();
   const { data: lessonsData, isLoading: lessonsLoading } = useLessons({
     status: "scheduled",
     limit: 5,
   });
 
-  useEffect(() => {
-    if (!authLoading && !instructor) {
-      router.push("/login");
-    }
-  }, [authLoading, instructor, router]);
 
-  if (authLoading || !instructor) {
-    return (
-      <Box minH="100vh" bg="bg.subtle" p={8}>
-        <Skeleton height="200px" />
-      </Box>
-    );
-  }
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -49,12 +33,11 @@ export default function DashboardPage() {
   };
 
   return (
-    <AppShell>
-      <VStack spacing={8} align="stretch">
-        <PageHeader
-          title={`Welcome back, ${instructor.firstName}!`}
-          subtitle="Here's an overview of your teaching activity"
-        />
+    <VStack spacing={8} align="stretch">
+      <PageHeader
+        title={`Welcome back, ${instructor?.firstName ?? ''}!`}
+      //   subtitle="Here's an overview of your teaching activity"
+      />
 
         {/* Stats Grid */}
         <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={4}>
@@ -69,26 +52,26 @@ export default function DashboardPage() {
             <>
               <MetricCard
                 icon={Calendar}
-                label="Total Lessons"
-                value={(stats?.total ?? 0).toString()}
-                helpText="All time"
+                label="Today's Lessons"
+                value={(stats?.todayLessons ?? 0).toString()}
+                helpText="Scheduled for today"
               />
               <MetricCard
                 icon={Clock}
-                label="Scheduled"
-                value={(stats?.scheduled ?? 0).toString()}
-                helpText="Upcoming lessons"
+                label="This Week"
+                value={(stats?.weekLessons ?? 0).toString()}
+                helpText="Upcoming this week"
               />
               <MetricCard
                 icon={Users}
-                label="Completed"
-                value={(stats?.completed ?? 0).toString()}
-                helpText="This month"
+                label="Active Learners"
+                value={(stats?.activeLearners ?? 0).toString()}
+                helpText="Total active"
               />
               <MetricCard
                 icon={DollarSign}
-                label="Revenue"
-                value={formatCurrency(stats?.totalRevenue ?? 0)}
+                label="Monthly Earnings"
+                value={formatCurrency(stats?.monthlyEarnings ?? 0)}
                 helpText="This month"
               />
             </>
@@ -141,10 +124,10 @@ export default function DashboardPage() {
                 borderColor="border.subtle"
               >
                 <Text fontSize="sm" color="text.muted" mb={1}>
-                  Cancelled
+                  Unpaid Lessons
                 </Text>
                 <Text fontSize="2xl" fontWeight="bold">
-                  {stats?.cancelled ?? 0}
+                  {stats?.unpaidLessons ?? 0}
                 </Text>
               </Box>
               <Box
@@ -155,33 +138,15 @@ export default function DashboardPage() {
                 borderColor="border.subtle"
               >
                 <Text fontSize="sm" color="text.muted" mb={1}>
-                  No Shows
+                  Unpaid Amount
                 </Text>
-                <Text fontSize="2xl" fontWeight="bold">
-                  {stats?.noShow ?? 0}
-                </Text>
-              </Box>
-              <Box
-                p={4}
-                bg="bg.surface"
-                borderRadius="lg"
-                border="1px solid"
-                borderColor="border.subtle"
-              >
-                <Text fontSize="sm" color="text.muted" mb={1}>
-                  Completion Rate
-                </Text>
-                <Text fontSize="2xl" fontWeight="bold">
-                  {stats && stats.total > 0
-                    ? Math.round((stats.completed / stats.total) * 100)
-                    : 0}
-                  %
+                <Text fontSize="2xl" fontWeight="bold" color={stats?.unpaidAmount ? "red.500" : undefined}>
+                  {formatCurrency(stats?.unpaidAmount ?? 0)}
                 </Text>
               </Box>
             </VStack>
           </Box>
         </Grid>
       </VStack>
-    </AppShell>
   );
 }
