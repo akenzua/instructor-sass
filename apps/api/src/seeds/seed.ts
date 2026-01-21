@@ -16,6 +16,29 @@ const InstructorSchema = new mongoose.Schema({
   businessName: String,
   hourlyRate: Number,
   currency: String,
+  // Public profile fields
+  username: String,
+  bio: String,
+  about: String,
+  profileImage: String,
+  serviceAreas: [String],
+  vehicleInfo: {
+    make: String,
+    model: String,
+    year: Number,
+    transmission: String,
+    hasLearnerDualControls: Boolean,
+  },
+  socialLinks: {
+    website: String,
+    facebook: String,
+    instagram: String,
+    twitter: String,
+  },
+  isPublicProfileEnabled: Boolean,
+  showPricing: Boolean,
+  showAvailability: Boolean,
+  acceptingNewStudents: Boolean,
 }, { timestamps: true });
 
 const LearnerSchema = new mongoose.Schema({
@@ -82,8 +105,30 @@ async function seed() {
     businessName: "Smith Driving School",
     hourlyRate: 45,
     currency: "GBP",
+    // Public profile fields
+    username: "john-smith",
+    bio: "Friendly and patient driving instructor with 10+ years of experience helping learners pass their test first time.",
+    about: "I've been teaching people to drive since 2014 and have helped over 500 learners pass their driving test. I specialise in nervous drivers and those who have previously failed their test. My teaching style is calm, patient, and tailored to each individual learner's needs.\n\nI offer lessons in both manual and automatic vehicles, and cover all areas of North London including Finchley, Barnet, and Enfield.",
+    profileImage: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face",
+    serviceAreas: ["Finchley", "Barnet", "Enfield", "Muswell Hill", "Highgate"],
+    vehicleInfo: {
+      make: "Ford",
+      model: "Fiesta",
+      year: 2022,
+      transmission: "manual",
+      hasLearnerDualControls: true,
+    },
+    socialLinks: {
+      website: "https://smithdrivingschool.co.uk",
+      facebook: "https://facebook.com/smithdrivingschool",
+      instagram: "https://instagram.com/smithdrivingschool",
+    },
+    isPublicProfileEnabled: true,
+    showPricing: true,
+    showAvailability: true,
+    acceptingNewStudents: true,
   });
-  console.log("👨‍🏫 Created instructor:", instructor.email);
+  console.log("👨‍🏫 Created instructor:", instructor.email, "with username:", "john-smith");
 
   // Create learners
   const learners = await Learner.insertMany([

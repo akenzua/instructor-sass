@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { lessonsApi, learnersApi, paymentsApi, availabilityApi, packagesApi } from "@/lib/api";
+import { lessonsApi, learnersApi, paymentsApi, availabilityApi, packagesApi, instructorApi, type UpdateInstructorData } from "@/lib/api";
 import type { Lesson, Learner, CreateLesson, CreateLearner } from "@acme/shared";
 
 // Lesson mutations
@@ -197,5 +197,24 @@ export function useDeletePackage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["packages"] });
     },
+  });
+}
+
+// Instructor profile mutations
+export function useUpdateInstructor() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: UpdateInstructorData) => instructorApi.update(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["instructor"] });
+      queryClient.invalidateQueries({ queryKey: ["auth"] });
+    },
+  });
+}
+
+export function useCheckUsername() {
+  return useMutation({
+    mutationFn: (username: string) => instructorApi.checkUsername(username),
   });
 }

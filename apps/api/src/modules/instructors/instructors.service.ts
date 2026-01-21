@@ -30,4 +30,27 @@ export class InstructorsService {
     }
     return instructor;
   }
+
+  async isUsernameAvailable(username: string, excludeId?: string): Promise<boolean> {
+    const normalizedUsername = username.toLowerCase();
+    
+    // Reserved usernames
+    const reserved = [
+      "www", "app", "api", "admin", "instructor", "learner",
+      "dashboard", "blog", "help", "support", "settings", "login",
+      "signup", "register", "account", "profile", "user", "users",
+    ];
+    
+    if (reserved.includes(normalizedUsername)) {
+      return false;
+    }
+
+    const query: Record<string, unknown> = { username: normalizedUsername };
+    if (excludeId) {
+      query._id = { $ne: excludeId };
+    }
+
+    const existing = await this.instructorModel.findOne(query);
+    return !existing;
+  }
 }

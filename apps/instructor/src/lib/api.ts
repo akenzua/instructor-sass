@@ -75,6 +75,73 @@ export const authApi = {
 };
 
 // ============================================================================
+// Instructor Profile
+// ============================================================================
+
+export interface UpdateInstructorData {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  businessName?: string;
+  hourlyRate?: number;
+  currency?: string;
+  username?: string;
+  bio?: string;
+  about?: string;
+  profileImage?: string;
+  coverImage?: string;
+  serviceAreas?: Array<{
+    name: string;
+    postcode?: string;
+    coordinates?: number[];
+    radiusMiles?: number;
+  }>;
+  primaryLocation?: string;
+  vehicleInfo?: {
+    make?: string;
+    model?: string;
+    year?: number;
+    transmission?: string;
+    imageUrl?: string;
+  };
+  socialLinks?: {
+    website?: string;
+    facebook?: string;
+    instagram?: string;
+    twitter?: string;
+    youtube?: string;
+    tiktok?: string;
+  };
+  passRate?: number;
+  totalStudentsTaught?: number;
+  yearsExperience?: number;
+  qualifications?: string[];
+  specializations?: string[];
+  languages?: string[];
+  isPublicProfileEnabled?: boolean;
+  showPricing?: boolean;
+  showAvailability?: boolean;
+  acceptingNewStudents?: boolean;
+}
+
+export const instructorApi = {
+  getMe: async (): Promise<Instructor> => {
+    const res = await api.get<Instructor>("/instructors/me");
+    return res.data;
+  },
+
+  update: async (data: UpdateInstructorData): Promise<Instructor> => {
+    const res = await api.put<Instructor>("/instructors/me", data);
+    return res.data;
+  },
+
+  checkUsername: async (username: string): Promise<{ available: boolean }> => {
+    const res = await api.get<{ available: boolean }>(`/instructors/username-check/${username}`);
+    return res.data;
+  },
+};
+
+// ============================================================================
 // Learners
 // ============================================================================
 

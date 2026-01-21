@@ -47,6 +47,7 @@ const navItems: NavItem[] = [
   { label: "Learners", icon: <Users size={20} />, href: "/learners" },
   { label: "Availability", icon: <Clock size={20} />, href: "/availability" },
   { label: "Packages", icon: <Package size={20} />, href: "/packages" },
+  { label: "Settings", icon: <Settings size={20} />, href: "/settings" },
 ];
 
 interface AppShellProps {
