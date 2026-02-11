@@ -149,15 +149,12 @@ export class AuthService {
     const tokenDoc = await this.magicLinkTokenModel.findOne({ token: dto.token });
     
     if (!tokenDoc) {
-      console.log(`❌ Token not found in database`);
       throw new UnauthorizedException("Invalid or expired magic link");
     }
 
-    console.log(`✅ Token found for email: ${tokenDoc.email}, bookingId: ${tokenDoc.bookingId}`);
 
     if (new Date() > tokenDoc.expiresAt) {
       await this.magicLinkTokenModel.deleteOne({ _id: tokenDoc._id });
-      console.log(`❌ Token expired at ${tokenDoc.expiresAt}`);
       throw new UnauthorizedException("Magic link has expired");
     }
 
