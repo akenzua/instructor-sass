@@ -1,12 +1,12 @@
-import { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import {
   fetchInstructorByUsername,
   fetchInstructorAvailability,
   fetchInstructorPackages,
   fetchInstructorReviews,
-} from "@/lib/api";
-import { InstructorPage } from "./InstructorPage";
+} from '@/lib/api';
+import { InstructorPage } from './InstructorPage';
 
 interface PageProps {
   params: Promise<{ username: string }>;
@@ -19,16 +19,18 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   if (!instructor) {
     return {
-      title: "Instructor Not Found",
+      title: 'Instructor Not Found',
     };
   }
 
   const fullName = `${instructor.firstName} ${instructor.lastName}`;
-  const location = instructor.location?.city || instructor.serviceAreas?.[0] || "";
-  const title = `${fullName} - Driving Instructor${location ? ` in ${location}` : ""}`;
-  const description = instructor.bio ||
-    `Book driving lessons with ${fullName}${location ? ` in ${location}` : ""}. ` +
-    `View availability, prices, packages, and reviews. ${instructor.passRate ? `${instructor.passRate}% pass rate.` : ""}`;
+  const primaryArea = instructor.serviceAreas?.[0] || '';
+  const allAreas = instructor.serviceAreas?.join(', ') || '';
+  const title = `${fullName} - Driving Instructor${primaryArea ? ` in ${primaryArea}` : ''}`;
+  const description =
+    instructor.bio ||
+    `Book driving lessons with ${fullName}${allAreas ? ` serving ${allAreas}` : ''}. ` +
+      `View availability, prices, packages, and reviews. ${instructor.passRate ? `${instructor.passRate}% pass rate.` : ''}`;
 
   const url = `https://${username}.indrive.com`;
 
@@ -37,25 +39,28 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     description,
     keywords: [
       `${fullName}`,
-      "driving instructor",
-      "driving lessons",
-      location && `driving instructor ${location}`,
-      location && `driving lessons ${location}`,
-      instructor.vehicleInfo?.transmission === "automatic" && "automatic driving lessons",
-      instructor.vehicleInfo?.transmission === "manual" && "manual driving lessons",
-      "learn to drive",
-      "book driving lessons",
+      'driving instructor',
+      'driving lessons',
+      // Generate keywords for each service area
+      ...(instructor.serviceAreas?.flatMap((area) => [
+        `driving instructor ${area}`,
+        `driving lessons ${area}`,
+      ]) || []),
+      instructor.vehicleInfo?.transmission === 'automatic' && 'automatic driving lessons',
+      instructor.vehicleInfo?.transmission === 'manual' && 'manual driving lessons',
+      'learn to drive',
+      'book driving lessons',
     ].filter(Boolean) as string[],
     authors: [{ name: fullName }],
     alternates: {
       canonical: url,
     },
     openGraph: {
-      type: "profile",
+      type: 'profile',
       title,
       description,
       url,
-      siteName: "InDrive",
+      siteName: 'InDrive',
       firstName: instructor.firstName,
       lastName: instructor.lastName,
       images: instructor.profileImage
@@ -70,7 +75,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         : undefined,
     },
     twitter: {
-      card: "summary_large_image",
+      card: 'summary_large_image',
       title,
       description,
       images: instructor.coverImage || instructor.profileImage,
@@ -81,31 +86,33 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       googleBot: {
         index: true,
         follow: true,
-        "max-video-preview": -1,
-        "max-image-preview": "large",
-        "max-snippet": -1,
+        'max-video-preview': -1,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
       },
     },
     other: {
       // Local business structured data hint
-      "geo.region": "GB",
-      "geo.placename": location,
+      'geo.region': 'GB',
+      'geo.placename': allAreas,
     },
   };
 }
 
 // Generate JSON-LD structured data
-function generateStructuredData(instructor: NonNullable<Awaited<ReturnType<typeof fetchInstructorByUsername>>>) {
+function generateStructuredData(
+  instructor: NonNullable<Awaited<ReturnType<typeof fetchInstructorByUsername>>>
+) {
   const fullName = `${instructor.firstName} ${instructor.lastName}`;
   const url = `https://${instructor.username}.indrive.com`;
 
   // LocalBusiness + Person schema
   const structuredData = {
-    "@context": "https://schema.org",
-    "@graph": [
+    '@context': 'https://schema.org',
+    '@graph': [
       {
-        "@type": "LocalBusiness",
-        "@id": `${url}#business`,
+        '@type': 'LocalBusiness',
+        '@id': `${url}#business`,
         name: `${fullName} - Driving Instructor`,
         description: instructor.bio,
         url,
@@ -113,30 +120,15 @@ function generateStructuredData(instructor: NonNullable<Awaited<ReturnType<typeo
         email: instructor.email,
         image: instructor.profileImage,
         priceRange: instructor.lessonTypes?.length
-          ? `£${Math.min(...instructor.lessonTypes.map(l => l.price))}-£${Math.max(...instructor.lessonTypes.map(l => l.price))}`
-          : undefined,
-        address: instructor.location?.city
-          ? {
-              "@type": "PostalAddress",
-              addressLocality: instructor.location.city,
-              postalCode: instructor.location.postcode,
-              addressCountry: "GB",
-            }
-          : undefined,
-        geo: instructor.location?.coordinates
-          ? {
-              "@type": "GeoCoordinates",
-              latitude: instructor.location.coordinates.lat,
-              longitude: instructor.location.coordinates.lng,
-            }
+          ? `£${Math.min(...instructor.lessonTypes.map((l) => l.price))}-£${Math.max(...instructor.lessonTypes.map((l) => l.price))}`
           : undefined,
         areaServed: instructor.serviceAreas?.map((area) => ({
-          "@type": "City",
+          '@type': 'City',
           name: area,
         })),
         aggregateRating: instructor.passRate
           ? {
-              "@type": "AggregateRating",
+              '@type': 'AggregateRating',
               ratingValue: (instructor.passRate / 20).toFixed(1), // Convert to 5-star scale
               bestRating: 5,
               worstRating: 1,
@@ -144,47 +136,47 @@ function generateStructuredData(instructor: NonNullable<Awaited<ReturnType<typeo
             }
           : undefined,
         makesOffer: instructor.lessonTypes?.map((lesson) => ({
-          "@type": "Offer",
+          '@type': 'Offer',
           itemOffered: {
-            "@type": "Service",
+            '@type': 'Service',
             name: `${lesson.type} Driving Lesson`,
             description: lesson.description,
           },
           price: lesson.price,
-          priceCurrency: "GBP",
-          availability: "https://schema.org/InStock",
+          priceCurrency: 'GBP',
+          availability: 'https://schema.org/InStock',
         })),
       },
       {
-        "@type": "Person",
-        "@id": `${url}#person`,
+        '@type': 'Person',
+        '@id': `${url}#person`,
         name: fullName,
         givenName: instructor.firstName,
         familyName: instructor.lastName,
-        jobTitle: "Driving Instructor",
+        jobTitle: 'Driving Instructor',
         image: instructor.profileImage,
         url,
         worksFor: {
-          "@type": "Organization",
-          name: "InDrive",
-          url: "https://indrive.com",
+          '@type': 'Organization',
+          name: 'InDrive',
+          url: 'https://indrive.com',
         },
       },
       {
-        "@type": "WebPage",
-        "@id": url,
+        '@type': 'WebPage',
+        '@id': url,
         url,
         name: `${fullName} - Driving Instructor`,
         description: instructor.bio,
-        inLanguage: "en-GB",
+        inLanguage: 'en-GB',
         isPartOf: {
-          "@type": "WebSite",
-          "@id": "https://indrive.com#website",
-          url: "https://indrive.com",
-          name: "InDrive",
+          '@type': 'WebSite',
+          '@id': 'https://indrive.com#website',
+          url: 'https://indrive.com',
+          name: 'InDrive',
         },
-        about: { "@id": `${url}#person` },
-        mainEntity: { "@id": `${url}#business` },
+        about: { '@id': `${url}#person` },
+        mainEntity: { '@id': `${url}#business` },
       },
     ],
   };
@@ -194,7 +186,6 @@ function generateStructuredData(instructor: NonNullable<Awaited<ReturnType<typeo
 
 export default async function Page({ params }: PageProps) {
   const { username } = await params;
-  
   // Fetch all data in parallel
   const [instructor, availability, packages, reviews] = await Promise.all([
     fetchInstructorByUsername(username),
@@ -216,7 +207,7 @@ export default async function Page({ params }: PageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
-      
+
       {/* Client Component with all the interactive UI */}
       <InstructorPage
         instructor={instructor}

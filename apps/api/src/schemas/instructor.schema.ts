@@ -3,6 +3,15 @@ import { Document, Types } from "mongoose";
 
 export type InstructorDocument = Instructor & Document;
 
+// GeoJSON Point for MongoDB geospatial queries
+export class GeoPoint {
+  @Prop({ default: "Point" })
+  type: string;
+
+  @Prop({ type: [Number], required: true })
+  coordinates: number[]; // [longitude, latitude]
+}
+
 // Sub-schema for service areas
 export class ServiceArea {
   @Prop({ required: true })
@@ -12,7 +21,10 @@ export class ServiceArea {
   postcode?: string;
 
   @Prop({ type: [Number] })
-  coordinates?: number[]; // [lng, lat]
+  coordinates?: number[]; // [lng, lat] - legacy format
+
+  @Prop({ type: GeoPoint })
+  location?: GeoPoint; // GeoJSON format for 2dsphere queries
 
   @Prop({ default: 5 })
   radiusMiles?: number;
@@ -55,6 +67,21 @@ export class SocialLinks {
 
   @Prop()
   tiktok?: string;
+}
+
+// Sub-schema for lesson types
+export class LessonTypeConfig {
+  @Prop({ required: true })
+  type: string;
+
+  @Prop({ required: true })
+  price: number;
+
+  @Prop({ required: true, default: 60 })
+  duration: number;
+
+  @Prop()
+  description?: string;
 }
 
 @Schema({ timestamps: true })
@@ -149,6 +176,9 @@ export class Instructor {
   @Prop({ default: 45 })
   hourlyRate: number;
 
+  @Prop({ type: [Object], default: [] })
+  lessonTypes?: LessonTypeConfig[];
+
   @Prop({ default: "GBP" })
   currency: string;
 
@@ -163,6 +193,11 @@ export class Instructor {
   @Prop()
   lastActiveAt?: Date;
 
+  // === GEOLOCATION ===
+  // Primary location as GeoJSON for geospatial queries
+  @Prop({ type: Object })
+  geoLocation?: GeoPoint;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -174,6 +209,8 @@ InstructorSchema.index({ email: 1 });
 InstructorSchema.index({ username: 1 }, { unique: true, sparse: true });
 InstructorSchema.index({ isPublicProfileEnabled: 1 });
 InstructorSchema.index({ primaryLocation: "text", "serviceAreas.name": "text" });
+// Geospatial index for location-based search
+InstructorSchema.index({ geoLocation: "2dsphere" });
 
 // Virtual for full name
 InstructorSchema.virtual("fullName").get(function () {

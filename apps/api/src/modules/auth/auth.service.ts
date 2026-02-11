@@ -1,23 +1,26 @@
 import { Injectable, UnauthorizedException, ConflictException, NotFoundException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { InjectModel } from "@nestjs/mongoose";
-import { Model } from "mongoose";
+import { Model, Types } from "mongoose";
 import * as bcrypt from "bcryptjs";
 import { Instructor, InstructorDocument } from "../../schemas/instructor.schema";
 import { Learner, LearnerDocument } from "../../schemas/learner.schema";
+import { Lesson, LessonDocument } from "../../schemas/lesson.schema";
+import { MagicLinkToken, MagicLinkTokenDocument } from "../../schemas/magic-link-token.schema";
 import { SignupDto, LoginDto, MagicLinkDto, VerifyMagicLinkDto } from "./dto/auth.dto";
 import { EmailService } from "../email/email.service";
 
 @Injectable()
 export class AuthService {
-  // Store magic link tokens temporarily (in production, use Redis or database)
-  private magicLinkTokens = new Map<string, { email: string; expiresAt: Date }>();
-
   constructor(
     @InjectModel(Instructor.name)
     private instructorModel: Model<InstructorDocument>,
     @InjectModel(Learner.name)
     private learnerModel: Model<LearnerDocument>,
+    @InjectModel(Lesson.name)
+    private lessonModel: Model<LessonDocument>,
+    @InjectModel(MagicLinkToken.name)
+    private magicLinkTokenModel: Model<MagicLinkTokenDocument>,
     private jwtService: JwtService,
     private emailService: EmailService
   ) {}
@@ -101,8 +104,13 @@ export class AuthService {
     const token = this.generateMagicToken();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
     
-    // Store token
-    this.magicLinkTokens.set(token, { email, expiresAt });
+    // Store token in MongoDB (replaces any existing token for this email)
+    await this.magicLinkTokenModel.findOneAndUpdate(
+      { email },
+      { token, email, expiresAt },
+      { upsert: true, new: true }
+    );
+    console.log(`📝 Stored magic link token in DB for ${email}`);
 
     // Send magic link email
     const magicLink = `http://localhost:3002/verify?token=${token}`;
@@ -116,25 +124,83 @@ export class AuthService {
   }
 
   async verifyMagicLink(dto: VerifyMagicLinkDto) {
-    const tokenData = this.magicLinkTokens.get(dto.token);
+    console.log(`🔍 Verifying magic link token: ${dto.token.substring(0, 10)}...`);
     
-    if (!tokenData) {
+    // Demo mode support
+    if (dto.token === "demo-learner-token") {
+      console.log(`✅ Demo token used, creating/finding demo learner`);
+      let learner = await this.learnerModel.findOne({ email: "demo@learner.com" });
+      if (!learner) {
+        learner = await this.learnerModel.create({
+          email: "demo@learner.com",
+          firstName: "Demo",
+          lastName: "Learner",
+          status: 'active',
+        });
+      }
+      const accessToken = this.generateLearnerToken(learner);
+      return {
+        access_token: accessToken,
+        learner: learner.toJSON(),
+      };
+    }
+    
+    // Find token in MongoDB
+    const tokenDoc = await this.magicLinkTokenModel.findOne({ token: dto.token });
+    
+    if (!tokenDoc) {
+      console.log(`❌ Token not found in database`);
       throw new UnauthorizedException("Invalid or expired magic link");
     }
 
-    if (new Date() > tokenData.expiresAt) {
-      this.magicLinkTokens.delete(dto.token);
+    console.log(`✅ Token found for email: ${tokenDoc.email}, bookingId: ${tokenDoc.bookingId}`);
+
+    if (new Date() > tokenDoc.expiresAt) {
+      await this.magicLinkTokenModel.deleteOne({ _id: tokenDoc._id });
+      console.log(`❌ Token expired at ${tokenDoc.expiresAt}`);
       throw new UnauthorizedException("Magic link has expired");
     }
 
     // Find learner
-    const learner = await this.learnerModel.findOne({ email: tokenData.email });
+    const learner = await this.learnerModel.findOne({ email: tokenDoc.email });
     if (!learner) {
+      console.log(`❌ Learner not found for email: ${tokenDoc.email}`);
       throw new NotFoundException("Learner not found");
     }
 
+    console.log(`✅ Learner found: ${learner._id}`);
+
+    // If there's a specific booking to confirm, update its status
+    let confirmedBooking = null;
+    if (tokenDoc.bookingId) {
+      confirmedBooking = await this.lessonModel.findByIdAndUpdate(
+        tokenDoc.bookingId,
+        { status: 'scheduled' },
+        { new: true }
+      ).populate('instructorId', 'firstName lastName username');
+      
+      if (confirmedBooking) {
+        console.log(`✅ Booking ${tokenDoc.bookingId} confirmed for ${tokenDoc.email}`);
+      } else {
+        console.log(`⚠️ Booking ${tokenDoc.bookingId} not found`);
+      }
+    }
+
+    // Also confirm ALL pending-confirmation bookings for this learner
+    const pendingResult = await this.lessonModel.updateMany(
+      { 
+        learnerId: learner._id, 
+        status: 'pending-confirmation' 
+      },
+      { status: 'scheduled' }
+    );
+    if (pendingResult.modifiedCount > 0) {
+      console.log(`✅ Confirmed ${pendingResult.modifiedCount} additional pending bookings for learner ${learner._id}`);
+    }
+
     // Delete used token
-    this.magicLinkTokens.delete(dto.token);
+    await this.magicLinkTokenModel.deleteOne({ _id: tokenDoc._id });
+    console.log(`🗑️ Token deleted from database`);
 
     // Generate JWT
     const accessToken = this.generateLearnerToken(learner);
@@ -142,6 +208,13 @@ export class AuthService {
     return {
       access_token: accessToken,
       learner: learner.toJSON(),
+      confirmedBooking: confirmedBooking ? {
+        id: confirmedBooking._id,
+        date: confirmedBooking.startTime,
+        instructorName: confirmedBooking.instructorId 
+          ? `${(confirmedBooking.instructorId as any).firstName} ${(confirmedBooking.instructorId as any).lastName}`
+          : undefined,
+      } : undefined,
     };
   }
 
@@ -176,8 +249,24 @@ export class AuthService {
     return token;
   }
 
-  storeMagicLinkToken(token: string, email: string, expiresAt: Date): void {
-    this.magicLinkTokens.set(token, { email, expiresAt });
+  async storeMagicLinkToken(token: string, email: string, expiresAt: Date, bookingId?: string): Promise<void> {
+    await this.magicLinkTokenModel.create({
+      token,
+      email: email.toLowerCase(),
+      expiresAt,
+      bookingId: bookingId ? new Types.ObjectId(bookingId) : undefined,
+    });
+    console.log(`📝 Stored magic link token in DB: ${token.substring(0, 10)}... for ${email}${bookingId ? ` with bookingId: ${bookingId}` : ''}`);
+  }
+
+  async getMagicLinkTokenData(token: string): Promise<{ email: string; expiresAt: Date; bookingId?: string } | null> {
+    const tokenDoc = await this.magicLinkTokenModel.findOne({ token });
+    if (!tokenDoc) return null;
+    return {
+      email: tokenDoc.email,
+      expiresAt: tokenDoc.expiresAt,
+      bookingId: tokenDoc.bookingId?.toString(),
+    };
   }
 
   private generateLearnerToken(learner: LearnerDocument): string {

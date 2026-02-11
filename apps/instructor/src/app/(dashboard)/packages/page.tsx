@@ -41,6 +41,7 @@ import { PageHeader } from "@acme/ui";
 import { usePackages } from "@/hooks";
 import { useCreatePackage, useUpdatePackage, useDeletePackage } from "@/hooks/mutations";
 import type { Package } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 interface PackageFormData {
   name: string;
@@ -64,8 +65,9 @@ export default function PackagesPage() {
   const toast = useToast();
   const modal = useDisclosure();
   const deleteModal = useDisclosure();
+  const { instructor } = useAuth();
 
-  const { data: packages, isLoading: packagesLoading } = usePackages();
+  const { data: packages, isLoading: packagesLoading, error: packagesError } = usePackages();
   const createMutation = useCreatePackage();
   const updateMutation = useUpdatePackage();
   const deleteMutation = useDeletePackage();
@@ -102,7 +104,7 @@ export default function PackagesPage() {
     try {
       if (editingPackage) {
         await updateMutation.mutateAsync({
-          id: editingPackage.id || editingPackage._id,
+          id: editingPackage._id,
           data: formData,
         });
         toast({
@@ -133,7 +135,7 @@ export default function PackagesPage() {
     if (!deletingPackage) return;
 
     try {
-      await deleteMutation.mutateAsync(deletingPackage.id || deletingPackage._id);
+      await deleteMutation.mutateAsync(deletingPackage._id);
       toast({
         title: "Package deleted",
         status: "success",

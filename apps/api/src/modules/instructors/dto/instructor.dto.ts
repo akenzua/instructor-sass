@@ -66,6 +66,24 @@ class SocialLinksDto {
   tiktok?: string;
 }
 
+class LessonTypeConfigDto {
+  @IsString()
+  type: string;
+
+  @IsNumber()
+  @Min(0)
+  price: number;
+
+  @IsNumber()
+  @Min(15)
+  @Max(480)
+  duration: number;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+}
+
 export class UpdateInstructorDto {
   @IsString()
   @IsOptional()
@@ -183,4 +201,10 @@ export class UpdateInstructorDto {
   @IsBoolean()
   @IsOptional()
   acceptingNewStudents?: boolean;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LessonTypeConfigDto)
+  @IsOptional()
+  lessonTypes?: LessonTypeConfigDto[];
 }

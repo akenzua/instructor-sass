@@ -8,6 +8,7 @@ export function useLessons(params?: LessonQuery) {
   return useQuery({
     queryKey: ["lessons", params],
     queryFn: () => lessonsApi.getAll(params),
+    enabled: true,
   });
 }
 
@@ -51,6 +52,7 @@ export function useWeeklyAvailability() {
   return useQuery({
     queryKey: ["availability", "weekly"],
     queryFn: () => availabilityApi.getWeekly(),
+    staleTime: 0, // Always refetch to ensure fresh data
   });
 }
 

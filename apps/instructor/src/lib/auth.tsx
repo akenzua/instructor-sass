@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { createContext, useContext, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import type { Instructor } from "@acme/shared";
-import { authApi } from "@/lib/api";
+import { createContext, useContext, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import type { Instructor } from '@acme/shared';
+import { authApi } from '@/lib/api';
 
 interface AuthContextType {
   instructor: Instructor | null;
@@ -18,11 +18,13 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [instructor, setInstructor] = useState<Instructor | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
+    setIsMounted(true);
     const checkAuth = async () => {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem('token');
       if (!token) {
         setIsLoading(false);
         return;
@@ -32,7 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const data = await authApi.getMe();
         setInstructor(data);
       } catch {
-        localStorage.removeItem("token");
+        localStorage.removeItem('token');
       } finally {
         setIsLoading(false);
       }
@@ -43,16 +45,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const data = await authApi.login({ email, password });
-    localStorage.setItem("token", data.accessToken);
+    localStorage.setItem('token', data.accessToken);
     setInstructor(data.instructor);
-    router.push("/");
+    router.push('/');
   };
 
   const logout = () => {
-    localStorage.removeItem("token");
+    localStorage.removeItem('token');
     setInstructor(null);
-    router.push("/login");
+    router.push('/login');
   };
+
+  // Return loading state instead of null to preserve hook order in children
+  if (!isMounted) {
+    return (
+      <AuthContext.Provider
+        value={{
+          instructor: null,
+          isLoading: true,
+          isAuthenticated: false,
+          login,
+          logout,
+        }}
+      >
+        {children}
+      </AuthContext.Provider>
+    );
+  }
 
   return (
     <AuthContext.Provider
@@ -72,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
+    throw new Error('useAuth must be used within AuthProvider');
   }
   return context;
 }

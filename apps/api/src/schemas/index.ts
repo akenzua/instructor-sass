@@ -4,3 +4,4 @@ export * from "./lesson.schema";
 export * from "./payment.schema";
 export * from "./availability.schema";
 export * from "./package.schema";
+export * from "./magic-link-token.schema";

@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
-import { Model } from "mongoose";
+import { Model, Types } from "mongoose";
 import {
   WeeklyAvailability,
   WeeklyAvailabilityDocument,
@@ -25,12 +25,15 @@ export class AvailabilityService {
   async getWeeklyAvailability(
     instructorId: string
   ): Promise<WeeklyAvailabilityDocument[]> {
-    let availability = await this.weeklyModel.find({ instructorId });
+    // Convert string ID to ObjectId for proper MongoDB query
+    const objectId = new Types.ObjectId(instructorId);
+    
+    let availability = await this.weeklyModel.find({ instructorId: objectId });
 
     // If no availability exists, create defaults
     if (availability.length === 0) {
       const defaults = DaysOfWeek.map((day) => ({
-        instructorId,
+        instructorId: objectId,
         dayOfWeek: day,
         slots:
           day === "saturday" || day === "sunday"
@@ -45,13 +48,33 @@ export class AvailabilityService {
     return availability;
   }
 
+  async resetToDefaults(instructorId: string): Promise<WeeklyAvailabilityDocument[]> {
+    const objectId = new Types.ObjectId(instructorId);
+    // Delete existing availability
+    await this.weeklyModel.deleteMany({ instructorId: objectId });
+    
+    // Create fresh defaults
+    const defaults = DaysOfWeek.map((day) => ({
+      instructorId: objectId,
+      dayOfWeek: day,
+      slots:
+        day === "saturday" || day === "sunday"
+          ? []
+          : [{ start: "09:00", end: "17:00" }],
+      isAvailable: day !== "saturday" && day !== "sunday",
+    }));
+
+    return await this.weeklyModel.insertMany(defaults) as any;
+  }
+
   async updateWeeklyAvailability(
     instructorId: string,
     dto: UpdateWeeklyAvailabilityDto[]
   ): Promise<WeeklyAvailabilityDocument[]> {
+    const objectId = new Types.ObjectId(instructorId);
     const operations = dto.map((item) => ({
       updateOne: {
-        filter: { instructorId, dayOfWeek: item.dayOfWeek },
+        filter: { instructorId: objectId, dayOfWeek: item.dayOfWeek },
         update: {
           $set: {
             slots: item.slots,
@@ -71,7 +94,8 @@ export class AvailabilityService {
     from?: string,
     to?: string
   ): Promise<AvailabilityOverrideDocument[]> {
-    const filter: Record<string, unknown> = { instructorId };
+    const objectId = new Types.ObjectId(instructorId);
+    const filter: Record<string, unknown> = { instructorId: objectId };
 
     if (from || to) {
       filter.date = {};
@@ -86,8 +110,9 @@ export class AvailabilityService {
     instructorId: string,
     dto: CreateOverrideDto
   ): Promise<AvailabilityOverrideDocument> {
+    const objectId = new Types.ObjectId(instructorId);
     return this.overrideModel.findOneAndUpdate(
-      { instructorId, date: dto.date },
+      { instructorId: objectId, date: dto.date },
       {
         $set: {
           slots: dto.slots || [],
@@ -100,6 +125,7 @@ export class AvailabilityService {
   }
 
   async deleteOverride(instructorId: string, date: string): Promise<void> {
-    await this.overrideModel.deleteOne({ instructorId, date });
+    const objectId = new Types.ObjectId(instructorId);
+    await this.overrideModel.deleteOne({ instructorId: objectId, date });
   }
 }

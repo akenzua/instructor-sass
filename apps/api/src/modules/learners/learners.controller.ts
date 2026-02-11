@@ -9,17 +9,39 @@ import {
   Query,
   UseGuards,
   Request,
+  Header,
 } from "@nestjs/common";
 import { LearnersService } from "./learners.service";
 import { CreateLearnerDto, UpdateLearnerDto, LearnerQueryDto } from "./dto/learner.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 
 @Controller("learners")
-@UseGuards(JwtAuthGuard)
 export class LearnersController {
   constructor(private readonly learnersService: LearnersService) {}
 
+  // Learner's own endpoints (authenticated as learner)
+  @Get("me/lessons")
+  @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'no-cache, no-store, must-revalidate')
+  async getMyLessons(
+    @Request() req: { user: { id: string; type?: string } },
+    @Query() query: { status?: string; limit?: number }
+  ) {
+    return this.learnersService.getLearnerLessons(req.user.id, query);
+  }
+
+  @Get("me/payments")
+  @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'no-cache, no-store, must-revalidate')
+  async getMyPayments(
+    @Request() req: { user: { id: string; type?: string } }
+  ) {
+    return this.learnersService.getLearnerPayments(req.user.id);
+  }
+
+  // Instructor endpoints (authenticated as instructor)
   @Post()
+  @UseGuards(JwtAuthGuard)
   async create(
     @Request() req: { user: { id: string } },
     @Body() dto: CreateLearnerDto
@@ -28,6 +50,7 @@ export class LearnersController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
   async findAll(
     @Request() req: { user: { id: string } },
     @Query() query: LearnerQueryDto
@@ -36,6 +59,7 @@ export class LearnersController {
   }
 
   @Get(":id")
+  @UseGuards(JwtAuthGuard)
   async findById(
     @Request() req: { user: { id: string } },
     @Param("id") id: string
@@ -44,6 +68,7 @@ export class LearnersController {
   }
 
   @Put(":id")
+  @UseGuards(JwtAuthGuard)
   async update(
     @Request() req: { user: { id: string } },
     @Param("id") id: string,
@@ -53,6 +78,7 @@ export class LearnersController {
   }
 
   @Delete(":id")
+  @UseGuards(JwtAuthGuard)
   async delete(
     @Request() req: { user: { id: string } },
     @Param("id") id: string

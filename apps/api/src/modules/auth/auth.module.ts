@@ -8,12 +8,16 @@ import { AuthController } from "./auth.controller";
 import { JwtStrategy } from "./strategies/jwt.strategy";
 import { Instructor, InstructorSchema } from "../../schemas/instructor.schema";
 import { Learner, LearnerSchema } from "../../schemas/learner.schema";
+import { Lesson, LessonSchema } from "../../schemas/lesson.schema";
+import { MagicLinkToken, MagicLinkTokenSchema } from "../../schemas/magic-link-token.schema";
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Instructor.name, schema: InstructorSchema },
       { name: Learner.name, schema: LearnerSchema },
+      { name: Lesson.name, schema: LessonSchema },
+      { name: MagicLinkToken.name, schema: MagicLinkTokenSchema },
     ]),
     PassportModule.register({ defaultStrategy: "jwt" }),
     JwtModule.registerAsync({

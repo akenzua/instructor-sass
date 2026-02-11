@@ -1,27 +1,20 @@
-"use client";
+'use client';
 
-import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import {
-  Box,
-  Skeleton,
-  useDisclosure,
-  VStack,
-  HStack,
-  Text,
-} from "@chakra-ui/react";
-import { startOfWeek, endOfWeek, addWeeks, subWeeks, format } from "date-fns";
-import { WeekCalendar, PageHeader } from "@acme/ui";
-import type { CalendarEvent, DayAvailability } from "@acme/ui";
-import { useLessons, useWeeklyAvailability } from "@/hooks";
-import { LessonDrawer, CreateLessonModal } from "@/components";
-import type { Lesson } from "@acme/shared";
+import { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Box, Skeleton, useDisclosure, VStack, HStack, Text } from '@chakra-ui/react';
+import { startOfWeek, endOfWeek, addWeeks, subWeeks, format, parseISO, getDay } from 'date-fns';
+import { WeekCalendar, PageHeader } from '@acme/ui';
+import type { CalendarEvent, DayAvailability } from '@acme/ui';
+import { useLessons, useWeeklyAvailability, useAvailabilityOverrides } from '@/hooks';
+import { LessonDrawer, CreateLessonModal } from '@/components';
+import type { Lesson } from '@acme/shared';
 
 const statusColorMap: Record<string, string> = {
-  scheduled: "primary",
-  completed: "green",
-  cancelled: "red",
-  "no-show": "orange",
+  scheduled: 'primary',
+  completed: 'green',
+  cancelled: 'red',
+  'no-show': 'orange',
 };
 
 // Map day names to JS day numbers (Sunday = 0, Monday = 1, etc.)
@@ -37,24 +30,42 @@ const dayNameToNumber: Record<string, number> = {
 
 export default function CalendarPage() {
   const router = useRouter();
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState<Date | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [selectedSlotDate, setSelectedSlotDate] = useState<Date | null>(null);
   const drawer = useDisclosure();
   const createModal = useDisclosure();
 
-  // Calculate week range
-  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
+  // Initialize date only on client to avoid hydration mismatch
+  useEffect(() => {
+    setCurrentDate(new Date());
+  }, []);
 
-  // Fetch lessons for the current week
+  // Calculate week range (use fallback date for initial render)
+  const dateToUse = currentDate || new Date();
+  const weekStart = startOfWeek(dateToUse, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(dateToUse, { weekStartsOn: 1 });
+
+  // Fetch lessons for the current week - MUST be called before any conditional returns
   const { data: lessonsData, isLoading: lessonsLoading } = useLessons({
     from: weekStart.toISOString(),
     to: weekEnd.toISOString(),
   });
 
-  // Fetch weekly availability
+  // Fetch weekly availability - MUST be called before any conditional returns
   const { data: weeklyAvailability, isLoading: availabilityLoading } = useWeeklyAvailability();
+
+  // Fetch ALL overrides (not filtered) to debug
+  const { data: overridesData, isLoading: overridesLoading } = useAvailabilityOverrides();
+
+  // Filter overrides for the current week on the client side
+  const weekOverrides = useMemo(() => {
+    if (!overridesData) return [];
+    const fromDate = format(weekStart, 'yyyy-MM-dd');
+    const toDate = format(weekEnd, 'yyyy-MM-dd');
+    const filtered = overridesData.filter((o) => o.date >= fromDate && o.date <= toDate);
+    return filtered;
+  }, [overridesData, weekStart, weekEnd]);
 
   // Transform lessons to calendar events
   const events: CalendarEvent[] = useMemo(() => {
@@ -62,10 +73,10 @@ export default function CalendarPage() {
 
     return lessonsData.items.map((lesson) => {
       // Get learner name from the populated learner object
-      const learnerName = lesson.learner 
-        ? `${lesson.learner.firstName || ''} ${lesson.learner.lastName || ''}`.trim() 
+      const learnerName = lesson.learner
+        ? `${lesson.learner.firstName || ''} ${lesson.learner.lastName || ''}`.trim()
         : 'Unknown Learner';
-      
+
       return {
         id: lesson._id,
         title: learnerName || 'Lesson',
@@ -76,23 +87,55 @@ export default function CalendarPage() {
     });
   }, [lessonsData]);
 
-  // Transform availability data for calendar
+  // Transform availability data for calendar, applying overrides
   const availability: DayAvailability[] = useMemo(() => {
     if (!weeklyAvailability) return [];
 
-    return weeklyAvailability.map((day) => ({
+    // Create base availability from weekly schedule
+    const baseAvailability = weeklyAvailability.map((day) => ({
       dayOfWeek: dayNameToNumber[day.dayOfWeek.toLowerCase()] ?? 0,
       isAvailable: day.isAvailable,
       slots: day.slots || [],
     }));
-  }, [weeklyAvailability]);
+
+    // If no overrides for this week, return base availability
+    if (!weekOverrides || weekOverrides.length === 0) {
+      return baseAvailability;
+    }
+
+    // Create a map of overrides by day of week for the current week
+    const overridesByDayOfWeek = new Map<number, (typeof weekOverrides)[0]>();
+    weekOverrides.forEach((override) => {
+      const overrideDate = parseISO(override.date);
+      const dayOfWeek = getDay(overrideDate); // 0 = Sunday, 1 = Monday, etc.
+      overridesByDayOfWeek.set(dayOfWeek, override);
+    });
+
+    const result = baseAvailability.map((day) => {
+      const override = overridesByDayOfWeek.get(day.dayOfWeek);
+      if (override) {
+        return {
+          ...day,
+          isAvailable: override.isAvailable,
+          slots: override.slots || [],
+        };
+      }
+      return day;
+    });
+
+    return result;
+  }, [weeklyAvailability, weekOverrides]);
 
   const handlePrevWeek = () => {
-    setCurrentDate(subWeeks(currentDate, 1));
+    if (currentDate) {
+      setCurrentDate(subWeeks(currentDate, 1));
+    }
   };
 
   const handleNextWeek = () => {
-    setCurrentDate(addWeeks(currentDate, 1));
+    if (currentDate) {
+      setCurrentDate(addWeeks(currentDate, 1));
+    }
   };
 
   const handleToday = () => {
@@ -112,53 +155,63 @@ export default function CalendarPage() {
     createModal.onOpen();
   };
 
-  const isLoading = lessonsLoading || availabilityLoading;
+  const isLoading = lessonsLoading || availabilityLoading || overridesLoading || !currentDate;
 
   return (
     <>
       <VStack spacing={6} align="stretch" h="full">
         <PageHeader
           title="Calendar"
-          description={`Week of ${format(weekStart, "MMMM d")} - ${format(weekEnd, "MMMM d, yyyy")}`}
+          description={`Week of ${format(weekStart, 'MMMM d')} - ${format(weekEnd, 'MMMM d, yyyy')}`}
         />
 
         {/* Legend */}
         <HStack spacing={4} flexWrap="wrap">
           <HStack spacing={2}>
             <Box w={3} h={3} bg="green.100" borderRadius="sm" />
-            <Text fontSize="sm" color="fg.muted">Available</Text>
+            <Text fontSize="sm" color="fg.muted">
+              Available
+            </Text>
           </HStack>
           <HStack spacing={2}>
             <Box w={3} h={3} bg="gray.100" borderRadius="sm" />
-            <Text fontSize="sm" color="fg.muted">Unavailable</Text>
+            <Text fontSize="sm" color="fg.muted">
+              Unavailable
+            </Text>
           </HStack>
           <HStack spacing={2}>
             <Box w={3} h={3} bg="primary.500" borderRadius="sm" />
-            <Text fontSize="sm" color="fg.muted">Scheduled</Text>
+            <Text fontSize="sm" color="fg.muted">
+              Scheduled
+            </Text>
           </HStack>
           <HStack spacing={2}>
             <Box w={3} h={3} bg="green.500" borderRadius="sm" />
-            <Text fontSize="sm" color="fg.muted">Completed</Text>
+            <Text fontSize="sm" color="fg.muted">
+              Completed
+            </Text>
           </HStack>
           <HStack spacing={2}>
             <Box w={3} h={3} bg="red.500" borderRadius="sm" />
-            <Text fontSize="sm" color="fg.muted">Cancelled</Text>
+            <Text fontSize="sm" color="fg.muted">
+              Cancelled
+            </Text>
           </HStack>
         </HStack>
 
         {!weeklyAvailability?.length && !availabilityLoading && (
-          <Box p={4} bg="orange.50" borderRadius="md" _dark={{ bg: "orange.900" }}>
-            <Text color="orange.700" _dark={{ color: "orange.200" }}>
-              No availability set. Go to{" "}
+          <Box p={4} bg="orange.50" borderRadius="md" _dark={{ bg: 'orange.900' }}>
+            <Text color="orange.700" _dark={{ color: 'orange.200' }}>
+              No availability set. Go to{' '}
               <Text
                 as="span"
                 fontWeight="bold"
                 cursor="pointer"
                 textDecoration="underline"
-                onClick={() => router.push("/availability")}
+                onClick={() => router.push('/availability')}
               >
                 Availability
-              </Text>{" "}
+              </Text>{' '}
               to set your working hours.
             </Text>
           </Box>

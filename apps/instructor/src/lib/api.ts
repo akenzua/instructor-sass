@@ -122,6 +122,12 @@ export interface UpdateInstructorData {
   showPricing?: boolean;
   showAvailability?: boolean;
   acceptingNewStudents?: boolean;
+  lessonTypes?: Array<{
+    type: string;
+    price: number;
+    duration: number;
+    description?: string;
+  }>;
 }
 
 export const instructorApi = {
@@ -304,7 +310,6 @@ export const availabilityApi = {
 
 export interface Package {
   _id: string;
-  id: string;
   instructorId: string;
   name: string;
   description?: string;

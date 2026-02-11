@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Box,
   Card,
@@ -17,19 +18,29 @@ import {
   FormControl,
   FormLabel,
   HStack,
+  Icon,
 } from "@chakra-ui/react";
-import { CheckCircle, XCircle, User } from "lucide-react";
+import { CheckCircle, XCircle, User, Calendar, Car } from "lucide-react";
 import { useLearnerAuth } from "@/lib/auth";
 import { authApi } from "@/lib/api";
+
+interface ConfirmedBooking {
+  id: string;
+  date: string;
+  instructorName?: string;
+}
 
 export default function VerifyPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const { verifyMagicLink, learner } = useLearnerAuth();
-  const [status, setStatus] = useState<"loading" | "success" | "needsProfile" | "savingProfile" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "success" | "bookingConfirmed" | "needsProfile" | "savingProfile" | "error">("loading");
   const [error, setError] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [confirmedBooking, setConfirmedBooking] = useState<ConfirmedBooking | null>(null);
+  const [hasVerified, setHasVerified] = useState(false);
 
   useEffect(() => {
     const token = searchParams.get("token");
@@ -40,22 +51,27 @@ export default function VerifyPage() {
       return;
     }
 
-    const verify = async () => {
-      try {
-        // Demo mode: accept demo token
-        if (token === "demo-learner-token") {
-          localStorage.setItem("learner_token", "demo_jwt_token");
-          setStatus("success");
-          setTimeout(() => {
-            window.location.href = "/";
-          }, 2000);
-          return;
-        }
+    // Prevent double verification (React Strict Mode or re-renders)
+    if (hasVerified) {
+      return;
+    }
 
-        await verifyMagicLink(token);
-        // After verification, check if we have the learner's name
-        // The learner state will update after verifyMagicLink completes
-        setStatus("success");
+    const verify = async () => {
+      setHasVerified(true);
+      try {
+        const result = await verifyMagicLink(token);
+        
+        // Invalidate all cached queries to ensure fresh data after login
+        // This is critical because booking confirmation updates lesson status
+        await queryClient.invalidateQueries();
+        
+        // Check if this was a booking confirmation
+        if (result.confirmedBooking) {
+          setConfirmedBooking(result.confirmedBooking);
+          setStatus("bookingConfirmed");
+        } else {
+          setStatus("success");
+        }
       } catch (err) {
         setStatus("error");
         setError("Invalid or expired token. Please request a new magic link.");
@@ -63,20 +79,21 @@ export default function VerifyPage() {
     };
 
     verify();
-  }, [searchParams, verifyMagicLink]);
+  }, [searchParams, verifyMagicLink, hasVerified]);
 
   // Check if learner needs to complete profile after successful verification
   useEffect(() => {
-    if (status === "success" && learner) {
+    if ((status === "success" || status === "bookingConfirmed") && learner) {
       if (!learner.firstName || !learner.lastName) {
         // Learner needs to complete their profile
         setStatus("needsProfile");
-      } else {
-        // Learner has complete profile, redirect
+      } else if (status === "success") {
+        // Learner has complete profile, redirect to dashboard
         setTimeout(() => {
           window.location.href = "/";
         }, 2000);
       }
+      // If bookingConfirmed, stay on the confirmation screen
     }
   }, [status, learner]);
 
@@ -119,6 +136,66 @@ export default function VerifyPage() {
                 <Heading size="md">Verifying...</Heading>
                 <Text color="text.muted">Please wait while we sign you in</Text>
               </VStack>
+            </VStack>
+          )}
+
+          {status === "bookingConfirmed" && confirmedBooking && (
+            <VStack spacing={6} textAlign="center">
+              <Box
+                p={4}
+                bg="green.100"
+                borderRadius="full"
+                color="green.500"
+                _dark={{ bg: "green.900", color: "green.200" }}
+              >
+                <Calendar size={48} />
+              </Box>
+              <VStack spacing={2}>
+                <Heading size="md">Booking Confirmed! 🎉</Heading>
+                <Text color="text.muted">
+                  Your driving lesson has been successfully booked
+                </Text>
+              </VStack>
+              
+              <Box 
+                w="full" 
+                bg="gray.50" 
+                p={4} 
+                borderRadius="lg"
+                _dark={{ bg: "gray.800" }}
+              >
+                <VStack spacing={2} align="start">
+                  {confirmedBooking.instructorName && (
+                    <HStack>
+                      <Icon as={Car} boxSize={4} color="primary.500" />
+                      <Text fontSize="sm">
+                        <strong>Instructor:</strong> {confirmedBooking.instructorName}
+                      </Text>
+                    </HStack>
+                  )}
+                  <HStack>
+                    <Icon as={Calendar} boxSize={4} color="primary.500" />
+                    <Text fontSize="sm">
+                      <strong>Date:</strong> {new Date(confirmedBooking.date).toLocaleDateString('en-GB', {
+                        weekday: 'long',
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </Text>
+                  </HStack>
+                </VStack>
+              </Box>
+
+              <Button
+                colorScheme="primary"
+                w="full"
+                onClick={() => router.push("/")}
+              >
+                Go to My Dashboard
+              </Button>
             </VStack>
           )}
 

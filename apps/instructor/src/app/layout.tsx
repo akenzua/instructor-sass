@@ -1,22 +1,18 @@
-import { Inter } from "next/font/google";
-import { Providers } from "./providers";
-import { AuthProvider } from "@/lib/auth";
+import { Inter } from 'next/font/google';
+import { Providers } from './providers';
+import { AuthProvider } from '@/lib/auth';
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
-  title: "Instructor Dashboard | Instructor SaaS",
-  description: "Manage your driving lessons, learners, and payments",
+  title: 'Instructor Dashboard | Instructor SaaS',
+  description: 'Manage your driving lessons, learners, and payments',
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={inter.className} suppressHydrationWarning>
         <Providers>
           <AuthProvider>{children}</AuthProvider>
         </Providers>
@@ -24,4 +20,3 @@ export default function RootLayout({
     </html>
   );
 }
-

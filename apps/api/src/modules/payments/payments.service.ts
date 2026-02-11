@@ -1,17 +1,12 @@
-import {
-  Injectable,
-  BadRequestException,
-  Inject,
-  forwardRef,
-} from "@nestjs/common";
-import { InjectModel } from "@nestjs/mongoose";
-import { ConfigService } from "@nestjs/config";
-import { Model } from "mongoose";
-import Stripe from "stripe";
-import { Payment, PaymentDocument } from "../../schemas/payment.schema";
-import { CreatePaymentIntentDto } from "./dto/payment.dto";
-import { LearnersService } from "../learners/learners.service";
-import { LessonsService } from "../lessons/lessons.service";
+import { Injectable, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { ConfigService } from '@nestjs/config';
+import { Model } from 'mongoose';
+import Stripe from 'stripe';
+import { Payment, PaymentDocument } from '../../schemas/payment.schema';
+import { CreatePaymentIntentDto } from './dto/payment.dto';
+import { LearnersService } from '../learners/learners.service';
+import { LessonsService } from '../lessons/lessons.service';
 
 @Injectable()
 export class PaymentsService {
@@ -26,10 +21,10 @@ export class PaymentsService {
     @Inject(forwardRef(() => LessonsService))
     private lessonsService: LessonsService
   ) {
-    const stripeKey = this.configService.get<string>("STRIPE_SECRET_KEY");
+    const stripeKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (stripeKey) {
       this.stripe = new Stripe(stripeKey, {
-        apiVersion: "2024-12-18.acacia" as any,
+        apiVersion: '2024-12-18.acacia' as any,
       });
     }
   }
@@ -37,20 +32,20 @@ export class PaymentsService {
   async createPaymentIntent(
     instructorId: string,
     dto: CreatePaymentIntentDto
-  ): Promise<{ clientSecret: string; paymentId: string }> {
+  ): Promise<{ clientSecret: string; paymentId: string; paymentIntentId: string }> {
     if (!this.stripe) {
-      throw new BadRequestException("Stripe not configured");
+      throw new BadRequestException('Stripe not configured');
     }
 
     // Create Stripe PaymentIntent
     const paymentIntent = await this.stripe.paymentIntents.create({
       amount: Math.round(dto.amount * 100), // Convert to pence
-      currency: "gbp",
+      currency: 'gbp',
       metadata: {
         instructorId,
         learnerId: dto.learnerId,
-        lessonIds: dto.lessonIds?.join(",") || "",
-        packageId: dto.packageId || "",
+        lessonIds: dto.lessonIds?.join(',') || '',
+        packageId: dto.packageId || '',
       },
     });
 
@@ -61,9 +56,9 @@ export class PaymentsService {
       lessonIds: dto.lessonIds || [],
       packageId: dto.packageId,
       amount: dto.amount,
-      currency: "GBP",
-      status: "pending",
-      method: "card",
+      currency: 'GBP',
+      status: 'pending',
+      method: 'card',
       stripePaymentIntentId: paymentIntent.id,
       stripeClientSecret: paymentIntent.client_secret,
       description: dto.description,
@@ -72,46 +67,40 @@ export class PaymentsService {
     return {
       clientSecret: paymentIntent.client_secret!,
       paymentId: payment._id.toString(),
+      paymentIntentId: paymentIntent.id,
     };
   }
 
-  async handleWebhook(
-    payload: Buffer,
-    signature: string
-  ): Promise<{ received: boolean }> {
+  async handleWebhook(payload: Buffer, signature: string): Promise<{ received: boolean }> {
     if (!this.stripe) {
-      throw new BadRequestException("Stripe not configured");
+      throw new BadRequestException('Stripe not configured');
     }
 
-    const webhookSecret = this.configService.get<string>("STRIPE_WEBHOOK_SECRET");
+    const webhookSecret = this.configService.get<string>('STRIPE_WEBHOOK_SECRET');
     if (!webhookSecret) {
-      throw new BadRequestException("Webhook secret not configured");
+      throw new BadRequestException('Webhook secret not configured');
     }
 
     let event: Stripe.Event;
 
     try {
-      event = this.stripe.webhooks.constructEvent(
-        payload,
-        signature,
-        webhookSecret
-      );
+      event = this.stripe.webhooks.constructEvent(payload, signature, webhookSecret);
     } catch (err) {
       throw new BadRequestException(`Webhook signature verification failed`);
     }
 
     switch (event.type) {
-      case "payment_intent.succeeded": {
+      case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         await this.handlePaymentSuccess(paymentIntent);
         break;
       }
-      case "payment_intent.payment_failed": {
+      case 'payment_intent.payment_failed': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         await this.handlePaymentFailure(paymentIntent);
         break;
       }
-      case "charge.refunded": {
+      case 'charge.refunded': {
         const charge = event.data.object as Stripe.Charge;
         await this.handleRefund(charge);
         break;
@@ -121,16 +110,14 @@ export class PaymentsService {
     return { received: true };
   }
 
-  private async handlePaymentSuccess(
-    paymentIntent: Stripe.PaymentIntent
-  ): Promise<void> {
+  private async handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent): Promise<void> {
     const payment = await this.paymentModel.findOne({
       stripePaymentIntentId: paymentIntent.id,
     });
 
     if (!payment) return;
 
-    payment.status = "succeeded";
+    payment.status = 'succeeded';
     payment.paidAt = new Date();
     await payment.save();
 
@@ -138,23 +125,18 @@ export class PaymentsService {
     if (payment.lessonIds.length > 0) {
       await this.lessonsService.updatePaymentStatus(
         payment.lessonIds.map((id) => id.toString()),
-        "paid"
+        'paid'
       );
     }
 
     // Update learner balance
-    await this.learnersService.updateBalance(
-      payment.learnerId.toString(),
-      payment.amount
-    );
+    await this.learnersService.updateBalance(payment.learnerId.toString(), payment.amount);
   }
 
-  private async handlePaymentFailure(
-    paymentIntent: Stripe.PaymentIntent
-  ): Promise<void> {
+  private async handlePaymentFailure(paymentIntent: Stripe.PaymentIntent): Promise<void> {
     await this.paymentModel.findOneAndUpdate(
       { stripePaymentIntentId: paymentIntent.id },
-      { $set: { status: "failed" } }
+      { $set: { status: 'failed' } }
     );
   }
 
@@ -165,7 +147,7 @@ export class PaymentsService {
 
     if (!payment) return;
 
-    payment.status = "refunded";
+    payment.status = 'refunded';
     payment.refundedAt = new Date();
     await payment.save();
 
@@ -173,23 +155,57 @@ export class PaymentsService {
     if (payment.lessonIds.length > 0) {
       await this.lessonsService.updatePaymentStatus(
         payment.lessonIds.map((id) => id.toString()),
-        "refunded"
+        'refunded'
       );
     }
 
     // Deduct from learner balance
-    await this.learnersService.updateBalance(
-      payment.learnerId.toString(),
-      -payment.amount
-    );
+    await this.learnersService.updateBalance(payment.learnerId.toString(), -payment.amount);
   }
 
-  async findByLearner(
-    instructorId: string,
-    learnerId: string
-  ): Promise<PaymentDocument[]> {
-    return this.paymentModel
-      .find({ instructorId, learnerId })
-      .sort({ createdAt: -1 });
+  async findByLearner(instructorId: string, learnerId: string): Promise<PaymentDocument[]> {
+    return this.paymentModel.find({ instructorId, learnerId }).sort({ createdAt: -1 });
+  }
+
+  async confirmPayment(paymentIntentId: string): Promise<PaymentDocument | null> {
+    if (!this.stripe) {
+      throw new BadRequestException('Stripe not configured');
+    }
+
+    // Fetch the PaymentIntent from Stripe to get the real status
+    const paymentIntent = await this.stripe.paymentIntents.retrieve(paymentIntentId);
+
+    // Find the payment record
+    const payment = await this.paymentModel.findOne({
+      stripePaymentIntentId: paymentIntentId,
+    });
+
+    if (!payment) {
+      return null;
+    }
+
+    // If already processed, return as-is
+    if (payment.status === 'succeeded' || payment.status === 'failed') {
+      return payment;
+    }
+
+    // Update based on Stripe's actual status
+    if (paymentIntent.status === 'succeeded') {
+      await this.handlePaymentSuccess(paymentIntent);
+      return this.paymentModel.findById(payment._id);
+    } else if (
+      paymentIntent.status === 'canceled' ||
+      paymentIntent.status === 'requires_payment_method'
+    ) {
+      payment.status = 'failed';
+      await payment.save();
+      return payment;
+    }
+
+    return payment;
+  }
+
+  async findByPaymentIntentId(paymentIntentId: string): Promise<PaymentDocument | null> {
+    return this.paymentModel.findOne({ stripePaymentIntentId: paymentIntentId });
   }
 }

@@ -1,12 +1,13 @@
-import axios from "axios";
-import type { Instructor, Learner, Lesson, Package } from "@acme/shared";
+import axios from 'axios';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import type { Package } from '@acme/shared';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
 
 const api = axios.create({
   baseURL: API_URL,
   headers: {
-    "Content-Type": "application/json",
+    'Content-Type': 'application/json',
   },
 });
 
@@ -48,7 +49,7 @@ export interface PublicInstructor {
     make?: string;
     model?: string;
     year?: number;
-    transmission: "manual" | "automatic";
+    transmission: 'manual' | 'automatic' | 'both';
     hasLearnerDualControls?: boolean;
   };
   socialLinks?: {
@@ -86,6 +87,61 @@ export interface AvailableSlot {
   startTime: string;
   endTime: string;
   duration: number;
+}
+
+// Search types
+export interface SearchInstructorsParams {
+  query?: string;
+  location?: string;
+  radius?: number; // Search radius in miles (default: 10)
+  lat?: number; // Latitude for geo search
+  lng?: number; // Longitude for geo search
+  transmission?: 'manual' | 'automatic' | 'both';
+  minRating?: number;
+  maxPrice?: number;
+  minPassRate?: number;
+  minExperience?: number;
+  acceptingStudents?: boolean;
+  specializations?: string;
+  languages?: string;
+  sortBy?: 'rating' | 'price' | 'experience' | 'passRate' | 'distance';
+  sortOrder?: 'asc' | 'desc';
+  page?: number;
+  limit?: number;
+}
+
+export interface InstructorStats {
+  totalLessons: number;
+  completedLessons: number;
+  totalStudents: number;
+  averageRating?: number;
+}
+
+export interface SearchInstructor extends PublicInstructor {
+  stats?: InstructorStats;
+  specializations?: string[];
+  languages?: string[];
+  businessName?: string;
+  totalStudentsTaught?: number;
+  primaryLocation?: string;
+  distance?: number; // Distance in miles (only for geo search)
+}
+
+export interface SearchInstructorsResponse {
+  instructors: SearchInstructor[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  search?: {
+    type: 'geo' | 'text';
+    location?: string;
+    radiusMiles?: number;
+    coordinates?: { lat: number; lng: number };
+    query?: string | null;
+  };
 }
 
 // Public API endpoints (no auth required)
@@ -133,14 +189,13 @@ export const publicApi = {
     return response.data;
   },
 
-  // Create a booking (guest or authenticated learner)
+  // Create a booking (returns payment intent for payment at booking)
   createBooking: async (
     username: string,
     data: {
       date: string;
       startTime: string;
-      duration: number;
-      lessonType: string;
+      endTime: string;
       learnerEmail: string;
       learnerFirstName: string;
       learnerLastName: string;
@@ -148,8 +203,35 @@ export const publicApi = {
       pickupLocation?: string;
       notes?: string;
     }
-  ): Promise<{ bookingId: string; paymentUrl: string }> => {
+  ): Promise<{
+    success: boolean;
+    message: string;
+    bookingId: string;
+    paymentId: string;
+    clientSecret: string;
+    paymentIntentId: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    price: number;
+    currency: string;
+    instructorName: string;
+    requiresPayment: boolean;
+  }> => {
     const response = await api.post(`/public/instructors/${username}/book`, data);
+    return response.data;
+  },
+
+  // Confirm booking after successful payment
+  confirmBookingPayment: async (paymentIntentId: string): Promise<{
+    success: boolean;
+    message: string;
+    bookingId: string;
+    lessonDate?: string;
+    instructorName?: string;
+    alreadyProcessed?: boolean;
+  }> => {
+    const response = await api.post('/public/bookings/confirm-payment', { paymentIntentId });
     return response.data;
   },
 
@@ -169,18 +251,100 @@ export const publicApi = {
   },
 
   // Search instructors
-  searchInstructors: async (params: {
-    location?: string;
-    postcode?: string;
-    transmission?: "manual" | "automatic";
-    maxPrice?: number;
-    page?: number;
-    limit?: number;
-  }): Promise<{ items: PublicInstructor[]; total: number }> => {
-    const response = await api.get("/public/instructors", { params });
+  searchInstructors: async (
+    params: SearchInstructorsParams
+  ): Promise<SearchInstructorsResponse> => {
+    const response = await api.get('/public/instructors/search', { params });
     return response.data;
   },
 };
+
+// React Query Hooks
+export function useInstructorByUsername(username: string) {
+  return useQuery({
+    queryKey: ['instructor', username],
+    queryFn: () => publicApi.getInstructorByUsername(username),
+    enabled: !!username,
+  });
+}
+
+export function useInstructorAvailability(username: string) {
+  return useQuery({
+    queryKey: ['instructor-availability', username],
+    queryFn: () => publicApi.getInstructorAvailability(username),
+    enabled: !!username,
+  });
+}
+
+export function useAvailableSlots(
+  username: string,
+  params: { from: string; to: string; duration?: number },
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: ['available-slots', username, params],
+    queryFn: () => publicApi.getAvailableSlots(username, params),
+    enabled:
+      options?.enabled !== undefined ? options.enabled : !!username && !!params.from && !!params.to,
+  });
+}
+
+export function useInstructorPackages(username: string) {
+  return useQuery({
+    queryKey: ['instructor-packages', username],
+    queryFn: () => publicApi.getInstructorPackages(username),
+    enabled: !!username,
+  });
+}
+
+export function useInstructorReviews(username: string, params?: { page?: number; limit?: number }) {
+  return useQuery({
+    queryKey: ['instructor-reviews', username, params],
+    queryFn: () => publicApi.getInstructorReviews(username, params),
+    enabled: !!username,
+  });
+}
+
+export function useCreateBooking(username: string) {
+  return useMutation({
+    mutationFn: (data: {
+      date: string;
+      startTime: string;
+      endTime: string;
+      learnerEmail: string;
+      learnerFirstName: string;
+      learnerLastName: string;
+      learnerPhone?: string;
+      pickupLocation?: string;
+      notes?: string;
+    }) => publicApi.createBooking(username, data),
+  });
+}
+
+export function useConfirmBookingPayment() {
+  return useMutation({
+    mutationFn: (paymentIntentId: string) => publicApi.confirmBookingPayment(paymentIntentId),
+  });
+}
+
+export function usePurchasePackage(username: string) {
+  return useMutation({
+    mutationFn: (data: {
+      packageId: string;
+      learnerEmail: string;
+      learnerFirstName: string;
+      learnerLastName: string;
+      learnerPhone?: string;
+    }) => publicApi.purchasePackage(username, data),
+  });
+}
+
+export function useSearchInstructors(params: SearchInstructorsParams) {
+  return useQuery({
+    queryKey: ['search-instructors', params],
+    queryFn: () => publicApi.searchInstructors(params),
+  });
+}
 
 // Server-side fetch functions for SSR/ISR
 export async function fetchInstructorByUsername(
@@ -192,49 +356,53 @@ export async function fetchInstructorByUsername(
     });
     if (!response.ok) {
       if (response.status === 404) return null;
-      throw new Error("Failed to fetch instructor");
+      throw new Error('Failed to fetch instructor');
     }
     return response.json();
   } catch (error) {
-    console.error("Error fetching instructor:", error);
+    console.error('Error fetching instructor:', error);
     return null;
   }
 }
 
-export async function fetchInstructorAvailability(
-  username: string
-): Promise<DayAvailability[]> {
+export async function fetchInstructorAvailability(username: string): Promise<DayAvailability[]> {
   try {
     const response = await fetch(`${API_URL}/public/instructors/${username}/availability`, {
       cache: 'no-store', // Disable caching to always get fresh data
     });
     if (!response.ok) {
-      console.error("Availability fetch failed:", response.status);
+      console.error('Availability fetch failed:', response.status);
       return [];
     }
     const data = await response.json();
-    console.log("Availability API response:", JSON.stringify(data));
+    console.log('Availability API response:', JSON.stringify(data));
     // API returns { weeklySchedule: [...] }, extract the array
     const availability = data.weeklySchedule || data || [];
-    console.log("Parsed availability:", availability.length, "days");
+    console.log('Parsed availability:', availability.length, 'days');
     return availability;
   } catch (error) {
-    console.error("Error fetching availability:", error);
+    console.error('Error fetching availability:', error);
     return [];
   }
 }
 
-export async function fetchInstructorPackages(
-  username: string
-): Promise<Package[]> {
+export async function fetchInstructorPackages(username: string): Promise<Package[]> {
   try {
-    const response = await fetch(`${API_URL}/public/instructors/${username}/packages`, {
+    const url = `${API_URL}/public/instructors/${username}/packages`;
+    console.log('Fetching packages from:', url);
+    const response = await fetch(url, {
       next: { revalidate: 300 }, // Revalidate every 5 minutes
     });
-    if (!response.ok) return [];
-    return response.json();
+    console.log('Packages response status:', response.status);
+    if (!response.ok) {
+      console.error('Failed to fetch packages:', response.status, response.statusText);
+      return [];
+    }
+    const data = await response.json();
+    console.log('Packages data:', data);
+    return data;
   } catch (error) {
-    console.error("Error fetching packages:", error);
+    console.error('Error fetching packages:', error);
     return [];
   }
 }
@@ -251,7 +419,7 @@ export async function fetchInstructorReviews(
     if (!response.ok) return { items: [], total: 0 };
     return response.json();
   } catch (error) {
-    console.error("Error fetching reviews:", error);
+    console.error('Error fetching reviews:', error);
     return { items: [], total: 0 };
   }
 }

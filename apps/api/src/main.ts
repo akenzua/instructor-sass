@@ -1,7 +1,7 @@
-import { NestFactory } from "@nestjs/core";
-import { ValidationPipe } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { AppModule } from "./app.module";
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -13,8 +13,10 @@ async function bootstrap() {
   // Enable CORS
   app.enableCors({
     origin: [
-      configService.get("INSTRUCTOR_APP_URL", "http://localhost:3001"),
-      configService.get("LEARNER_APP_URL", "http://localhost:3002"),
+      configService.get('INSTRUCTOR_APP_URL', 'http://localhost:3001'),
+      configService.get('LEARNER_APP_URL', 'http://localhost:3002'),
+      configService.get('PUBLIC_APP_URL', 'http://localhost:3004'),
+      configService.get('PLAYGROUND_APP_URL', 'http://localhost:3003'),
     ],
     credentials: true,
   });
@@ -32,9 +34,9 @@ async function bootstrap() {
   );
 
   // API prefix
-  app.setGlobalPrefix("api");
+  app.setGlobalPrefix('api');
 
-  const port = configService.get("PORT", 3000);
+  const port = configService.get('PORT', 3000);
   await app.listen(port);
 
   console.log(`🚀 API running on http://localhost:${port}/api`);

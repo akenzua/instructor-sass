@@ -3,7 +3,7 @@ import { Document, Types } from "mongoose";
 
 export type LessonDocument = Lesson & Document;
 
-export const LessonStatuses = ["scheduled", "completed", "cancelled", "no-show"] as const;
+export const LessonStatuses = ["pending-confirmation", "scheduled", "completed", "cancelled", "no-show"] as const;
 export const LessonPaymentStatuses = ["pending", "paid", "refunded", "waived"] as const;
 export const LessonTypes = ["standard", "test-prep", "mock-test", "motorway", "refresher"] as const;
 

@@ -17,6 +17,38 @@ export type Pagination = z.infer<typeof paginationSchema>;
 // Instructor
 // ============================================================================
 
+// Sub-schemas
+export const serviceAreaSchema = z.object({
+  name: z.string(),
+  postcode: z.string().optional(),
+  coordinates: z.array(z.number()).length(2).optional(), // [lng, lat]
+  radiusMiles: z.number().default(5),
+});
+
+export const vehicleInfoSchema = z.object({
+  make: z.string().optional(),
+  model: z.string().optional(),
+  year: z.number().optional(),
+  transmission: z.enum(["manual", "automatic", "both"]).default("manual"),
+  imageUrl: z.string().optional(),
+});
+
+export const socialLinksSchema = z.object({
+  website: z.string().optional(),
+  facebook: z.string().optional(),
+  instagram: z.string().optional(),
+  twitter: z.string().optional(),
+  youtube: z.string().optional(),
+  tiktok: z.string().optional(),
+});
+
+export const lessonTypeConfigSchema = z.object({
+  type: z.string(),
+  price: z.number().positive(),
+  duration: z.number().int().positive().default(60),
+  description: z.string().optional(),
+});
+
 export const instructorSchema = z.object({
   _id: objectIdSchema,
   email: z.string().email(),
@@ -25,9 +57,38 @@ export const instructorSchema = z.object({
   lastName: z.string().min(1).max(100),
   phone: z.string().optional(),
   businessName: z.string().optional(),
+  
+  // Public profile fields
+  username: z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/).optional(),
+  bio: z.string().max(500).optional(),
+  about: z.string().max(2000).optional(),
+  profileImage: z.string().optional(),
+  coverImage: z.string().optional(),
+  serviceAreas: z.array(serviceAreaSchema).optional(),
+  primaryLocation: z.string().optional(),
+  vehicleInfo: vehicleInfoSchema.optional(),
+  socialLinks: socialLinksSchema.optional(),
+  passRate: z.number().min(0).max(100).optional(),
+  totalStudentsTaught: z.number().min(0).optional(),
+  yearsExperience: z.number().min(0).optional(),
+  qualifications: z.array(z.string()).optional(),
+  specializations: z.array(z.string()).optional(),
+  languages: z.array(z.string()).optional(),
+  isPublicProfileEnabled: z.boolean().default(false),
+  showPricing: z.boolean().default(true),
+  showAvailability: z.boolean().default(true),
+  acceptingNewStudents: z.boolean().default(true),
+  
+  // Pricing & payments
   hourlyRate: z.number().positive().default(45),
+  lessonTypes: z.array(lessonTypeConfigSchema).default([]),
   currency: z.string().default("GBP"),
   stripeAccountId: z.string().optional(),
+  
+  // Metadata
+  profileViews: z.number().default(0),
+  lastActiveAt: z.string().datetime().optional(),
+  
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -37,12 +98,18 @@ export const createInstructorSchema = instructorSchema.omit({
   createdAt: true,
   updatedAt: true,
   stripeAccountId: true,
+  profileViews: true,
+  lastActiveAt: true,
 }).extend({
   password: z.string().min(8),
 });
 
 export const updateInstructorSchema = createInstructorSchema.partial().omit({ password: true });
 
+export type ServiceArea = z.infer<typeof serviceAreaSchema>;
+export type VehicleInfo = z.infer<typeof vehicleInfoSchema>;
+export type SocialLinks = z.infer<typeof socialLinksSchema>;
+export type LessonTypeConfig = z.infer<typeof lessonTypeConfigSchema>;
 export type Instructor = z.infer<typeof instructorSchema>;
 export type CreateInstructor = z.infer<typeof createInstructorSchema>;
 export type UpdateInstructor = z.infer<typeof updateInstructorSchema>;

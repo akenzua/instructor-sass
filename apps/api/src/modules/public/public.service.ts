@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
+import { ConfigService } from "@nestjs/config";
 import { Model, Types } from "mongoose";
+import Stripe from "stripe";
 import {
   Instructor,
   InstructorDocument,
@@ -14,10 +16,17 @@ import {
 import { Package, PackageDocument } from "../../schemas/package.schema";
 import { Lesson, LessonDocument } from "../../schemas/lesson.schema";
 import { Learner, LearnerDocument } from "../../schemas/learner.schema";
-import { BookLessonDto, PurchasePackageDto } from "./dto/public.dto";
+import { Payment, PaymentDocument } from "../../schemas/payment.schema";
+import { BookLessonDto, PurchasePackageDto, SearchInstructorsDto } from "./dto/public.dto";
+import { AuthService } from "../auth/auth.service";
+import { EmailService } from "../email/email.service";
+import { PostcodeService } from "./postcode.service";
 
 @Injectable()
 export class PublicService {
+  private stripe: Stripe | null = null;
+  private readonly logger = new Logger(PublicService.name);
+
   constructor(
     @InjectModel(Instructor.name)
     private instructorModel: Model<InstructorDocument>,
@@ -30,8 +39,413 @@ export class PublicService {
     @InjectModel(Lesson.name)
     private lessonModel: Model<LessonDocument>,
     @InjectModel(Learner.name)
-    private learnerModel: Model<LearnerDocument>
-  ) {}
+    private learnerModel: Model<LearnerDocument>,
+    @InjectModel(Payment.name)
+    private paymentModel: Model<PaymentDocument>,
+    @Inject(forwardRef(() => AuthService))
+    private authService: AuthService,
+    private emailService: EmailService,
+    private configService: ConfigService,
+    private postcodeService: PostcodeService
+  ) {
+    const stripeKey = this.configService.get<string>("STRIPE_SECRET_KEY");
+    if (stripeKey) {
+      this.stripe = new Stripe(stripeKey, {
+        apiVersion: "2024-12-18.acacia" as any,
+      });
+    }
+  }
+
+  /**
+   * Search instructors with filters
+   * Supports geospatial search when location is a valid UK postcode
+   */
+  async searchInstructors(dto: SearchInstructorsDto) {
+    const {
+      query,
+      location,
+      radius,
+      lat,
+      lng,
+      transmission,
+      minRating,
+      maxPrice,
+      minPassRate,
+      minExperience,
+      acceptingStudents,
+      specializations,
+      languages,
+      sortBy = 'rating',
+      sortOrder = 'desc',
+      page = '1',
+      limit = '12',
+    } = dto;
+
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const skip = (pageNum - 1) * limitNum;
+    const radiusMiles = radius ? parseFloat(radius) : 10; // Default 10 miles
+
+    // Try to geocode the location if provided
+    let geoCoords: { lat: number; lng: number } | null = null;
+    let geoLocationName: string | null = null;
+
+    // If lat/lng provided directly (e.g., from browser geolocation)
+    if (lat && lng) {
+      geoCoords = { lat: parseFloat(lat), lng: parseFloat(lng) };
+    } 
+    // Otherwise try to geocode the location string
+    else if (location) {
+      const geoResult = await this.postcodeService.geocodeLocation(location);
+      if (geoResult) {
+        geoCoords = { lat: geoResult.latitude, lng: geoResult.longitude };
+        geoLocationName = geoResult.formattedLocation;
+        this.logger.log(`Geocoded "${location}" to ${geoResult.latitude}, ${geoResult.longitude} (${geoLocationName})`);
+      }
+    }
+
+    // If we have geo coordinates, use aggregation with $geoNear
+    if (geoCoords) {
+      return this.searchInstructorsWithGeo(dto, geoCoords, radiusMiles, geoLocationName);
+    }
+
+    // Otherwise, fall back to regular text-based search
+    return this.searchInstructorsWithText(dto);
+  }
+
+  /**
+   * Search instructors using geospatial queries
+   */
+  private async searchInstructorsWithGeo(
+    dto: SearchInstructorsDto,
+    coords: { lat: number; lng: number },
+    radiusMiles: number,
+    locationName: string | null
+  ) {
+    const {
+      query,
+      location,
+      transmission,
+      maxPrice,
+      minPassRate,
+      minExperience,
+      acceptingStudents,
+      specializations,
+      languages,
+      sortBy = 'rating',
+      sortOrder = 'desc',
+      page = '1',
+      limit = '12',
+    } = dto;
+
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Build match filters
+    const matchFilter: any = {
+      isPublicProfileEnabled: true,
+    };
+
+    // Text search for name, bio
+    if (query) {
+      matchFilter.$or = [
+        { firstName: { $regex: query, $options: 'i' } },
+        { lastName: { $regex: query, $options: 'i' } },
+        { businessName: { $regex: query, $options: 'i' } },
+        { bio: { $regex: query, $options: 'i' } },
+      ];
+    }
+
+    // Transmission filter
+    if (transmission && ['manual', 'automatic', 'both'].includes(transmission)) {
+      if (transmission === 'both') {
+        matchFilter['vehicleInfo.transmission'] = 'both';
+      } else {
+        matchFilter['vehicleInfo.transmission'] = { $in: [transmission, 'both'] };
+      }
+    }
+
+    // Price filter
+    if (maxPrice) {
+      matchFilter.hourlyRate = { $lte: parseFloat(maxPrice) };
+    }
+
+    // Pass rate filter
+    if (minPassRate) {
+      matchFilter.passRate = { $gte: parseFloat(minPassRate) };
+    }
+
+    // Experience filter
+    if (minExperience) {
+      matchFilter.yearsExperience = { $gte: parseInt(minExperience, 10) };
+    }
+
+    // Accepting students filter
+    if (acceptingStudents === 'true') {
+      matchFilter.acceptingNewStudents = true;
+    }
+
+    // Specializations filter
+    if (specializations) {
+      const specs = specializations.split(',').map(s => s.trim());
+      matchFilter.specializations = { $in: specs };
+    }
+
+    // Build sort stage
+    let sortStage: any = {};
+    switch (sortBy) {
+      case 'distance':
+        sortStage.distance = 1; // Always ascending for distance
+        break;
+      case 'price':
+        sortStage.hourlyRate = sortOrder === 'asc' ? 1 : -1;
+        break;
+      case 'experience':
+        sortStage.yearsExperience = sortOrder === 'asc' ? 1 : -1;
+        break;
+      case 'passRate':
+        sortStage.passRate = sortOrder === 'asc' ? 1 : -1;
+        break;
+      case 'rating':
+      default:
+        sortStage.passRate = -1; // Default: highest pass rate first
+        break;
+    }
+
+    const maxDistanceMeters = this.postcodeService.milesToMeters(radiusMiles);
+
+    // Use aggregation with $geoNear
+    const pipeline: any[] = [
+      {
+        $geoNear: {
+          near: {
+            type: 'Point',
+            coordinates: [coords.lng, coords.lat], // GeoJSON: [lng, lat]
+          },
+          distanceField: 'distanceMeters',
+          maxDistance: maxDistanceMeters,
+          spherical: true,
+          query: matchFilter,
+        },
+      },
+      {
+        $addFields: {
+          distance: { $divide: ['$distanceMeters', 1609.344] }, // Convert to miles
+        },
+      },
+      { $sort: sortStage },
+    ];
+
+    // Get total count
+    const countPipeline = [...pipeline, { $count: 'total' }];
+    const countResult = await this.instructorModel.aggregate(countPipeline);
+    const total = countResult[0]?.total || 0;
+
+    // Add pagination and projection
+    pipeline.push(
+      { $skip: skip },
+      { $limit: limitNum },
+      {
+        $project: {
+          password: 0,
+          stripeAccountId: 0,
+          email: 0,
+          phone: 0,
+        },
+      }
+    );
+
+    const instructors = await this.instructorModel.aggregate(pipeline);
+
+    // Get stats for each instructor
+    const instructorsWithStats = await Promise.all(
+      instructors.map(async (instructor) => {
+        const stats = await this.getInstructorStats(instructor._id.toString());
+        return {
+          ...instructor,
+          distance: Math.round(instructor.distance * 10) / 10, // Round to 1 decimal
+          stats,
+        };
+      })
+    );
+
+    return {
+      instructors: instructorsWithStats,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+      search: {
+        type: 'geo',
+        location: locationName || `${coords.lat}, ${coords.lng}`,
+        radiusMiles,
+        coordinates: coords,
+      },
+    };
+  }
+
+  /**
+   * Search instructors using text-based matching (fallback)
+   */
+  private async searchInstructorsWithText(dto: SearchInstructorsDto) {
+    const {
+      query,
+      location,
+      transmission,
+      maxPrice,
+      minPassRate,
+      minExperience,
+      acceptingStudents,
+      specializations,
+      languages,
+      sortBy = 'rating',
+      sortOrder = 'desc',
+      page = '1',
+      limit = '12',
+    } = dto;
+
+    // Build filter query
+    const filter: any = {
+      isPublicProfileEnabled: true,
+    };
+
+    // Text search for name, bio, service areas
+    if (query) {
+      filter.$or = [
+        { firstName: { $regex: query, $options: 'i' } },
+        { lastName: { $regex: query, $options: 'i' } },
+        { businessName: { $regex: query, $options: 'i' } },
+        { bio: { $regex: query, $options: 'i' } },
+        { serviceAreas: { $regex: query, $options: 'i' } }, // serviceAreas is array of strings
+        { 'serviceAreas.name': { $regex: query, $options: 'i' } }, // or array of objects
+        { 'serviceAreas.postcode': { $regex: query, $options: 'i' } },
+        { primaryLocation: { $regex: query, $options: 'i' } },
+      ];
+    }
+
+    // Location filter (text-based fallback)
+    if (location) {
+      const locationFilters = [
+        { serviceAreas: { $regex: location, $options: 'i' } },
+        { 'serviceAreas.name': { $regex: location, $options: 'i' } },
+        { 'serviceAreas.postcode': { $regex: location, $options: 'i' } },
+        { primaryLocation: { $regex: location, $options: 'i' } },
+      ];
+      
+      if (filter.$or) {
+        filter.$and = [
+          { $or: filter.$or },
+          { $or: locationFilters },
+        ];
+        delete filter.$or;
+      } else {
+        filter.$or = locationFilters;
+      }
+    }
+
+    // Transmission filter
+    if (transmission && ['manual', 'automatic', 'both'].includes(transmission)) {
+      if (transmission === 'both') {
+        filter['vehicleInfo.transmission'] = 'both';
+      } else {
+        filter['vehicleInfo.transmission'] = { $in: [transmission, 'both'] };
+      }
+    }
+
+    // Price filter
+    if (maxPrice) {
+      filter.hourlyRate = { $lte: parseFloat(maxPrice) };
+    }
+
+    // Pass rate filter
+    if (minPassRate) {
+      filter.passRate = { $gte: parseFloat(minPassRate) };
+    }
+
+    // Experience filter
+    if (minExperience) {
+      filter.yearsExperience = { $gte: parseInt(minExperience, 10) };
+    }
+
+    // Accepting students filter
+    if (acceptingStudents === 'true') {
+      filter.acceptingNewStudents = true;
+    }
+
+    // Specializations filter
+    if (specializations) {
+      const specs = specializations.split(',').map(s => s.trim());
+      filter.specializations = { $in: specs };
+    }
+
+    // Languages filter
+    if (languages) {
+      const langs = languages.split(',').map(l => l.trim());
+      filter.languages = { $in: langs };
+    }
+
+    // Build sort options
+    const sortOptions: any = {};
+    switch (sortBy) {
+      case 'price':
+        sortOptions.hourlyRate = sortOrder === 'asc' ? 1 : -1;
+        break;
+      case 'experience':
+        sortOptions.yearsExperience = sortOrder === 'asc' ? 1 : -1;
+        break;
+      case 'passRate':
+        sortOptions.passRate = sortOrder === 'asc' ? 1 : -1;
+        break;
+      case 'rating':
+      default:
+        sortOptions.passRate = sortOrder === 'asc' ? 1 : -1;
+        break;
+    }
+
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Execute query
+    const [instructors, total] = await Promise.all([
+      this.instructorModel
+        .find(filter)
+        .select('-password -stripeAccountId -email -phone')
+        .sort(sortOptions)
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      this.instructorModel.countDocuments(filter),
+    ]);
+
+    // Get stats for each instructor
+    const instructorsWithStats = await Promise.all(
+      instructors.map(async (instructor) => {
+        const stats = await this.getInstructorStats(instructor._id.toString());
+        return {
+          ...instructor,
+          stats,
+        };
+      })
+    );
+
+    return {
+      instructors: instructorsWithStats,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+      search: {
+        type: 'text',
+        query: query || location || null,
+      },
+    };
+  }
 
   /**
    * Get instructor by username (public profile)
@@ -219,8 +633,13 @@ export class PublicService {
 
   /**
    * Book a lesson with an instructor
+   * Creates a pending lesson and payment intent for payment at booking
    */
   async bookLesson(username: string, dto: BookLessonDto) {
+    if (!this.stripe) {
+      throw new BadRequestException("Payment system not configured");
+    }
+
     const instructor = await this.findInstructorByUsername(username);
 
     if (!instructor.acceptingNewStudents) {
@@ -242,10 +661,9 @@ export class PublicService {
       throw new BadRequestException("This time slot is no longer available");
     }
 
-    // Find or create learner
+    // Find or create learner (without instructor ID initially for self-signup)
     let learner = await this.learnerModel.findOne({
       email: dto.learnerEmail.toLowerCase(),
-      instructorId: instructor._id,
     });
 
     if (!learner) {
@@ -254,35 +672,85 @@ export class PublicService {
         firstName: dto.learnerFirstName,
         lastName: dto.learnerLastName,
         phone: dto.learnerPhone,
-        instructorId: instructor._id,
+        status: 'active',
       });
+    } else {
+      // Update learner details if they weren't set before
+      if (!learner.firstName && dto.learnerFirstName) {
+        learner.firstName = dto.learnerFirstName;
+        learner.lastName = dto.learnerLastName;
+        learner.phone = dto.learnerPhone;
+        await learner.save();
+      }
     }
 
     // Calculate duration and price
     const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
     const price = (durationMinutes / 60) * instructor.hourlyRate;
 
-    // Create lesson
+    // Create lesson with PENDING-PAYMENT status (not confirmed until paid)
     const lesson = await this.lessonModel.create({
       instructorId: instructor._id,
       learnerId: learner._id,
       startTime,
       endTime,
       duration: durationMinutes,
-      status: "scheduled",
+      status: "pending-confirmation", // Will be confirmed after payment
+      paymentStatus: "pending",
       price,
       pickupLocation: dto.pickupLocation,
       notes: dto.notes,
     });
 
+    // Create Stripe PaymentIntent
+    const instructorName = `${instructor.firstName} ${instructor.lastName}`;
+    const formattedDate = startTime.toLocaleDateString('en-GB', { 
+      weekday: 'long', 
+      day: 'numeric', 
+      month: 'long', 
+      year: 'numeric' 
+    });
+
+    const paymentIntent = await this.stripe.paymentIntents.create({
+      amount: Math.round(price * 100), // Convert to pence
+      currency: (instructor.currency || 'GBP').toLowerCase(),
+      metadata: {
+        instructorId: instructor._id.toString(),
+        learnerId: learner._id.toString(),
+        lessonId: lesson._id.toString(),
+        type: 'booking',
+      },
+      description: `Driving lesson with ${instructorName} on ${formattedDate}`,
+    });
+
+    // Create payment record
+    const payment = await this.paymentModel.create({
+      instructorId: instructor._id,
+      learnerId: learner._id,
+      lessonIds: [lesson._id],
+      amount: price,
+      currency: instructor.currency || 'GBP',
+      status: 'pending',
+      method: 'card',
+      stripePaymentIntentId: paymentIntent.id,
+      stripeClientSecret: paymentIntent.client_secret,
+      description: `Lesson booking - ${formattedDate}`,
+    });
+
     return {
-      lessonId: lesson._id,
+      success: true,
+      message: 'Please complete payment to confirm your booking',
+      bookingId: lesson._id.toString(),
+      paymentId: payment._id.toString(),
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
       date: dto.date,
       startTime: dto.startTime,
       endTime: dto.endTime,
-      price: lesson.price,
-      currency: instructor.currency,
-      instructorName: `${instructor.firstName} ${instructor.lastName}`,
+      price,
+      currency: instructor.currency || 'GBP',
+      instructorName,
+      requiresPayment: true,
     };
   }
 
@@ -467,5 +935,110 @@ export class PublicService {
     });
 
     return !conflictingLesson;
+  }
+
+  /**
+   * Confirm booking after successful payment
+   * Updates lesson and payment status, sends confirmation email
+   */
+  async confirmBookingPayment(paymentIntentId: string) {
+    if (!this.stripe) {
+      throw new BadRequestException("Payment system not configured");
+    }
+
+    // Verify payment with Stripe
+    const paymentIntent = await this.stripe.paymentIntents.retrieve(paymentIntentId);
+    
+    if (paymentIntent.status !== 'succeeded') {
+      throw new BadRequestException(`Payment not completed. Status: ${paymentIntent.status}`);
+    }
+
+    // Find the payment record
+    const payment = await this.paymentModel.findOne({
+      stripePaymentIntentId: paymentIntentId,
+    });
+
+    if (!payment) {
+      throw new NotFoundException("Payment record not found");
+    }
+
+    // Check if already processed
+    if (payment.status === 'succeeded') {
+      // Already processed, return success
+      const lesson = await this.lessonModel.findById(payment.lessonIds[0]);
+      return {
+        success: true,
+        message: 'Booking already confirmed',
+        bookingId: lesson?._id.toString(),
+        alreadyProcessed: true,
+      };
+    }
+
+    // Update payment status
+    payment.status = 'succeeded';
+    payment.paidAt = new Date();
+    await payment.save();
+
+    // Update lesson status to scheduled and payment status to paid
+    const lesson = await this.lessonModel.findByIdAndUpdate(
+      payment.lessonIds[0],
+      { 
+        status: 'scheduled',
+        paymentStatus: 'paid',
+      },
+      { new: true }
+    ).populate('instructorId', 'firstName lastName email');
+
+    if (!lesson) {
+      throw new NotFoundException("Lesson not found");
+    }
+
+    // Get learner details
+    const learner = await this.learnerModel.findById(payment.learnerId);
+    if (!learner) {
+      throw new NotFoundException("Learner not found");
+    }
+
+    // Generate magic link token for learner portal access
+    const token = this.authService.generateMagicToken();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    await this.authService.storeMagicLinkToken(token, learner.email, expiresAt);
+
+    // Send booking confirmation email
+    const instructor = lesson.instructorId as any;
+    const instructorName = `${instructor.firstName} ${instructor.lastName}`;
+    const formattedDate = lesson.startTime.toLocaleDateString('en-GB', { 
+      weekday: 'long', 
+      day: 'numeric', 
+      month: 'long', 
+      year: 'numeric' 
+    });
+    const formattedTime = lesson.startTime.toLocaleTimeString('en-GB', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+
+    await this.emailService.sendBookingConfirmationEmail(
+      learner.email,
+      token,
+      {
+        learnerName: learner.firstName || 'there',
+        instructorName,
+        date: formattedDate,
+        time: formattedTime,
+        duration: lesson.duration,
+        price: lesson.price,
+        currency: payment.currency || 'GBP',
+        isPaid: true,
+      }
+    );
+
+    return {
+      success: true,
+      message: 'Booking confirmed! Check your email for details.',
+      bookingId: lesson._id.toString(),
+      lessonDate: lesson.startTime,
+      instructorName,
+    };
   }
 }

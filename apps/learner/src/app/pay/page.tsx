@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Box,
   Button,
@@ -23,35 +23,31 @@ import {
   FormControl,
   FormLabel,
   FormErrorMessage,
-} from "@chakra-ui/react";
-import { ArrowLeft, CreditCard, CheckCircle } from "lucide-react";
-import { loadStripe } from "@stripe/stripe-js";
-import {
-  Elements,
-  PaymentElement,
-  useStripe,
-  useElements,
-} from "@stripe/react-stripe-js";
-import { useLearnerAuth } from "@/lib/auth";
-import { authApi, paymentsApi } from "@/lib/api";
+} from '@chakra-ui/react';
+import { ArrowLeft, CreditCard, CheckCircle } from 'lucide-react';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { useLearnerAuth } from '@/lib/auth';
+import { authApi, paymentsApi } from '@/lib/api';
 
 // Initialize Stripe
-const stripePromise = loadStripe(
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ""
-);
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
 
 function PaymentForm({
   clientSecret,
+  paymentIntentId,
   amount,
   onSuccess,
 }: {
   clientSecret: string;
+  paymentIntentId: string;
   amount: number;
   onSuccess: () => void;
 }) {
   const stripe = useStripe();
   const elements = useElements();
   const toast = useToast();
+  const queryClient = useQueryClient();
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,16 +66,25 @@ function PaymentForm({
       confirmParams: {
         return_url: `${window.location.origin}/pay/success`,
       },
-      redirect: "if_required",
+      redirect: 'if_required',
     });
 
     if (submitError) {
-      setError(submitError.message || "Payment failed. Please try again.");
+      setError(submitError.message || 'Payment failed. Please try again.');
       setIsProcessing(false);
     } else {
+      // Confirm payment with backend to update DB status
+      try {
+        await paymentsApi.confirmPayment(paymentIntentId);
+        // Invalidate queries to refetch fresh data
+        await queryClient.invalidateQueries({ queryKey: ['learner'] });
+      } catch (err) {
+        console.error('Failed to confirm payment on backend:', err);
+      }
+
       toast({
-        title: "Payment successful!",
-        status: "success",
+        title: 'Payment successful!',
+        status: 'success',
         duration: 3000,
       });
       onSuccess();
@@ -87,16 +92,16 @@ function PaymentForm({
   };
 
   const formatCurrency = (cents: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
     }).format(cents / 100);
   };
 
   return (
     <form onSubmit={handleSubmit}>
       <VStack spacing={6} align="stretch">
-        <Box p={4} bg="primary.50" borderRadius="lg" _dark={{ bg: "primary.900" }}>
+        <Box p={4} bg="primary.50" borderRadius="lg" _dark={{ bg: 'primary.900' }}>
           <Text fontSize="sm" color="text.muted">
             Amount to pay
           </Text>
@@ -139,17 +144,15 @@ function PaymentSuccess() {
         bg="green.100"
         borderRadius="full"
         color="green.500"
-        _dark={{ bg: "green.900", color: "green.200" }}
+        _dark={{ bg: 'green.900', color: 'green.200' }}
       >
         <CheckCircle size={48} />
       </Box>
       <VStack spacing={2}>
         <Heading size="md">Payment Successful!</Heading>
-        <Text color="text.muted">
-          Your payment has been processed successfully.
-        </Text>
+        <Text color="text.muted">Your payment has been processed successfully.</Text>
       </VStack>
-      <Button colorScheme="primary" onClick={() => router.push("/")}>
+      <Button colorScheme="primary" onClick={() => router.push('/')}>
         Back to Home
       </Button>
     </VStack>
@@ -161,14 +164,15 @@ export default function PayPage() {
   const toast = useToast();
   const { isAuthenticated, isLoading: authLoading, learner } = useLearnerAuth();
 
-  const [customAmount, setCustomAmount] = useState("");
-  const [amountError, setAmountError] = useState("");
+  const [customAmount, setCustomAmount] = useState('');
+  const [amountError, setAmountError] = useState('');
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   // Get learner profile
   const { data: profile, isLoading: profileLoading } = useQuery({
-    queryKey: ["learner", "profile"],
+    queryKey: ['learner', 'profile'],
     queryFn: authApi.me,
     enabled: isAuthenticated,
   });
@@ -178,12 +182,13 @@ export default function PayPage() {
     mutationFn: (amount: number) => paymentsApi.createPaymentIntent(amount),
     onSuccess: (data) => {
       setClientSecret(data.clientSecret);
+      setPaymentIntentId(data.paymentIntentId);
     },
     onError: (error) => {
       toast({
-        title: "Error",
-        description: "Failed to initialize payment. Please try again.",
-        status: "error",
+        title: 'Error',
+        description: 'Failed to initialize payment. Please try again.',
+        status: 'error',
         duration: 5000,
       });
     },
@@ -191,7 +196,7 @@ export default function PayPage() {
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
-      router.push("/login");
+      router.push('/login');
     }
   }, [authLoading, isAuthenticated, router]);
 
@@ -202,16 +207,16 @@ export default function PayPage() {
     const amount = customAmount ? parseFloat(customAmount) : owedAmount;
 
     if (!amount || amount <= 0) {
-      setAmountError("Please enter a valid amount");
+      setAmountError('Please enter a valid amount');
       return;
     }
 
     if (amount < 1) {
-      setAmountError("Minimum payment is $1.00");
+      setAmountError('Minimum payment is $1.00');
       return;
     }
 
-    setAmountError("");
+    setAmountError('');
     // Convert to cents for Stripe
     createIntentMutation.mutate(Math.round(amount * 100));
   };
@@ -225,9 +230,9 @@ export default function PayPage() {
   }
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
     }).format(amount);
   };
 
@@ -239,7 +244,7 @@ export default function PayPage() {
           <Button
             variant="ghost"
             leftIcon={<ArrowLeft size={16} />}
-            onClick={() => router.push("/")}
+            onClick={() => router.push('/')}
           >
             Back
           </Button>
@@ -258,7 +263,7 @@ export default function PayPage() {
                 options={{
                   clientSecret,
                   appearance: {
-                    theme: "stripe",
+                    theme: 'stripe',
                   },
                 }}
               >
@@ -272,6 +277,7 @@ export default function PayPage() {
 
                   <PaymentForm
                     clientSecret={clientSecret}
+                    paymentIntentId={paymentIntentId!}
                     amount={
                       customAmount
                         ? Math.round(parseFloat(customAmount) * 100)
@@ -284,7 +290,8 @@ export default function PayPage() {
                     variant="ghost"
                     onClick={() => {
                       setClientSecret(null);
-                      setCustomAmount("");
+                      setPaymentIntentId(null);
+                      setCustomAmount('');
                     }}
                   >
                     Change Amount
@@ -305,12 +312,7 @@ export default function PayPage() {
                 ) : (
                   <>
                     {owedAmount > 0 && (
-                      <Box
-                        p={4}
-                        bg="red.50"
-                        borderRadius="lg"
-                        _dark={{ bg: "red.900" }}
-                      >
+                      <Box p={4} bg="red.50" borderRadius="lg" _dark={{ bg: 'red.900' }}>
                         <Text fontSize="sm" color="text.muted">
                           Outstanding Balance
                         </Text>
@@ -323,17 +325,14 @@ export default function PayPage() {
                     <FormControl isInvalid={!!amountError}>
                       <FormLabel>Payment Amount</FormLabel>
                       <InputGroup size="lg">
-                        <InputLeftElement
-                          pointerEvents="none"
-                          color="text.muted"
-                        >
+                        <InputLeftElement pointerEvents="none" color="text.muted">
                           $
                         </InputLeftElement>
                         <Input
                           type="number"
                           step="0.01"
                           min="1"
-                          placeholder={owedAmount > 0 ? owedAmount.toFixed(2) : "0.00"}
+                          placeholder={owedAmount > 0 ? owedAmount.toFixed(2) : '0.00'}
                           value={customAmount}
                           onChange={(e) => setCustomAmount(e.target.value)}
                         />
@@ -360,7 +359,8 @@ export default function PayPage() {
                       <Alert status="info" borderRadius="md">
                         <AlertIcon />
                         <AlertDescription>
-                          You have no outstanding balance. Enter an amount to add credit to your account.
+                          You have no outstanding balance. Enter an amount to add credit to your
+                          account.
                         </AlertDescription>
                       </Alert>
                     )}
@@ -368,8 +368,8 @@ export default function PayPage() {
                     <Alert status="info" borderRadius="md">
                       <AlertIcon />
                       <AlertDescription fontSize="sm">
-                        Demo Mode: Use card number 4242 4242 4242 4242 with any future
-                        expiry and CVC.
+                        Demo Mode: Use card number 4242 4242 4242 4242 with any future expiry and
+                        CVC.
                       </AlertDescription>
                     </Alert>
                   </>

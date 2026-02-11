@@ -39,6 +39,13 @@ import {
   Alert,
   AlertIcon,
   Link,
+  IconButton,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
 } from "@chakra-ui/react";
 import {
   CheckCircle,
@@ -48,6 +55,10 @@ import {
   User,
   Car,
   Settings,
+  DollarSign,
+  Plus,
+  Trash2,
+  Edit2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useUpdateInstructor, useCheckUsername } from "@/hooks/mutations";
@@ -87,6 +98,7 @@ export default function SettingsPage() {
         socialLinks: (instructor as any).socialLinks || {},
         qualifications: (instructor as any).qualifications || [],
         languages: (instructor as any).languages || [],
+        lessonTypes: (instructor as any).lessonTypes || [],
       });
       
       // Set initial username status
@@ -183,6 +195,7 @@ export default function SettingsPage() {
           <TabList>
             <Tab><Icon as={User} mr={2} boxSize={4} /> Profile</Tab>
             <Tab><Icon as={Globe} mr={2} boxSize={4} /> Public Page</Tab>
+            <Tab><Icon as={DollarSign} mr={2} boxSize={4} /> Services</Tab>
             <Tab><Icon as={Car} mr={2} boxSize={4} /> Vehicle</Tab>
             <Tab><Icon as={Settings} mr={2} boxSize={4} /> Business</Tab>
           </TabList>
@@ -448,6 +461,135 @@ export default function SettingsPage() {
                   </CardBody>
                 </Card>
               </VStack>
+            </TabPanel>
+
+            {/* Services Tab - Lesson Types */}
+            <TabPanel px={0}>
+              <Card>
+                <CardHeader>
+                  <HStack justify="space-between">
+                    <Box>
+                      <Heading size="md">Lesson Types</Heading>
+                      <Text fontSize="sm" color="gray.500" mt={1}>
+                        Configure the types of lessons you offer and their pricing
+                      </Text>
+                    </Box>
+                    <Button
+                      leftIcon={<Plus size={16} />}
+                      colorScheme="primary"
+                      size="sm"
+                      onClick={() => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          lessonTypes: [
+                            ...(prev.lessonTypes || []),
+                            { type: "", price: 45, duration: 60, description: "" },
+                          ],
+                        }));
+                      }}
+                    >
+                      Add Lesson Type
+                    </Button>
+                  </HStack>
+                </CardHeader>
+                <CardBody>
+                  {(!formData.lessonTypes || formData.lessonTypes.length === 0) ? (
+                    <Alert status="info" borderRadius="md">
+                      <AlertIcon />
+                      <Box>
+                        <Text fontWeight="medium">No lesson types configured</Text>
+                        <Text fontSize="sm">Add lesson types to allow students to book specific services from your public profile.</Text>
+                      </Box>
+                    </Alert>
+                  ) : (
+                    <VStack spacing={4} align="stretch">
+                      {formData.lessonTypes.map((lessonType, index) => (
+                        <Card key={index} variant="outline">
+                          <CardBody>
+                            <VStack spacing={4} align="stretch">
+                              <HStack justify="space-between">
+                                <Text fontWeight="semibold" color="gray.600">Lesson Type #{index + 1}</Text>
+                                <IconButton
+                                  aria-label="Remove lesson type"
+                                  icon={<Trash2 size={16} />}
+                                  size="sm"
+                                  colorScheme="red"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setFormData((prev) => ({
+                                      ...prev,
+                                      lessonTypes: prev.lessonTypes?.filter((_, i) => i !== index),
+                                    }));
+                                  }}
+                                />
+                              </HStack>
+                              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                                <FormControl isRequired>
+                                  <FormLabel>Type Name</FormLabel>
+                                  <Input
+                                    value={lessonType.type}
+                                    onChange={(e) => {
+                                      const updated = [...(formData.lessonTypes || [])];
+                                      updated[index] = { ...updated[index], type: e.target.value };
+                                      setFormData((prev) => ({ ...prev, lessonTypes: updated }));
+                                    }}
+                                    placeholder="e.g., Standard Lesson, Test Prep"
+                                  />
+                                </FormControl>
+                                <FormControl isRequired>
+                                  <FormLabel>Price (£)</FormLabel>
+                                  <NumberInput
+                                    value={lessonType.price}
+                                    onChange={(_, value) => {
+                                      const updated = [...(formData.lessonTypes || [])];
+                                      updated[index] = { ...updated[index], price: value || 0 };
+                                      setFormData((prev) => ({ ...prev, lessonTypes: updated }));
+                                    }}
+                                    min={0}
+                                  >
+                                    <NumberInputField />
+                                  </NumberInput>
+                                </FormControl>
+                              </SimpleGrid>
+                              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                                <FormControl isRequired>
+                                  <FormLabel>Duration (minutes)</FormLabel>
+                                  <NumberInput
+                                    value={lessonType.duration}
+                                    onChange={(_, value) => {
+                                      const updated = [...(formData.lessonTypes || [])];
+                                      updated[index] = { ...updated[index], duration: value || 60 };
+                                      setFormData((prev) => ({ ...prev, lessonTypes: updated }));
+                                    }}
+                                    min={15}
+                                    max={480}
+                                    step={15}
+                                  >
+                                    <NumberInputField />
+                                  </NumberInput>
+                                  <FormHelperText>Between 15 and 480 minutes</FormHelperText>
+                                </FormControl>
+                                <FormControl>
+                                  <FormLabel>Description (optional)</FormLabel>
+                                  <Input
+                                    value={lessonType.description || ""}
+                                    onChange={(e) => {
+                                      const updated = [...(formData.lessonTypes || [])];
+                                      updated[index] = { ...updated[index], description: e.target.value };
+                                      setFormData((prev) => ({ ...prev, lessonTypes: updated }));
+                                    }}
+                                    placeholder="Brief description of this lesson type"
+                                  />
+                                </FormControl>
+                              </SimpleGrid>
+                            </VStack>
+                          </CardBody>
+                        </Card>
+                      ))}
+                    </VStack>
+                  )}
+                </CardBody>
+              </Card>
             </TabPanel>
 
             {/* Vehicle Tab */}

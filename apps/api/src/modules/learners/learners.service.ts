@@ -3,6 +3,8 @@ import { InjectModel } from "@nestjs/mongoose";
 import { ConfigService } from "@nestjs/config";
 import { Model } from "mongoose";
 import { Learner, LearnerDocument } from "../../schemas/learner.schema";
+import { Lesson, LessonDocument } from "../../schemas/lesson.schema";
+import { Payment, PaymentDocument } from "../../schemas/payment.schema";
 import { CreateLearnerDto, UpdateLearnerDto, LearnerQueryDto } from "./dto/learner.dto";
 import { EmailService } from "../email/email.service";
 import { InstructorsService } from "../instructors/instructors.service";
@@ -13,6 +15,10 @@ export class LearnersService {
   constructor(
     @InjectModel(Learner.name)
     private learnerModel: Model<LearnerDocument>,
+    @InjectModel(Lesson.name)
+    private lessonModel: Model<LessonDocument>,
+    @InjectModel(Payment.name)
+    private paymentModel: Model<PaymentDocument>,
     private emailService: EmailService,
     private instructorsService: InstructorsService,
     @Inject(forwardRef(() => AuthService))
@@ -157,5 +163,33 @@ export class LearnersService {
       throw new NotFoundException("Learner not found");
     }
     return learner;
+  }
+
+  // Learner's own methods
+  async getLearnerLessons(learnerId: string, query: { status?: string; limit?: number }) {
+    const filter: any = { learnerId };
+    
+    if (query.status) {
+      filter.status = query.status;
+    }
+
+    let queryBuilder = this.lessonModel
+      .find(filter)
+      .populate('instructorId', 'firstName lastName email phone')
+      .sort({ startTime: 1 });
+
+    if (query.limit) {
+      queryBuilder = queryBuilder.limit(Number(query.limit));
+    }
+
+    return queryBuilder.exec();
+  }
+
+  async getLearnerPayments(learnerId: string) {
+    return this.paymentModel
+      .find({ learnerId })
+      .populate('instructorId', 'firstName lastName')
+      .sort({ createdAt: -1 })
+      .exec();
   }
 }

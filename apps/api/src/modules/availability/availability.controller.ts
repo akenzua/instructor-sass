@@ -36,6 +36,11 @@ export class AvailabilityController {
     return this.availabilityService.updateWeeklyAvailability(req.user.id, dto);
   }
 
+  @Post('reset')
+  async resetToDefaults(@Request() req: { user: { id: string } }) {
+    return this.availabilityService.resetToDefaults(req.user.id);
+  }
+
   @Get("overrides")
   async getOverrides(
     @Request() req: { user: { id: string } },
