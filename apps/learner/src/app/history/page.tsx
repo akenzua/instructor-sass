@@ -69,7 +69,7 @@ export default function HistoryPage() {
         <VStack spacing={6} align="stretch">
           <PageHeader
             title="Lesson History"
-            subtitle="View all your past and upcoming lessons"
+            description="View all your past and upcoming lessons"
           />
 
           {lessonsLoading ? (
@@ -91,15 +91,16 @@ export default function HistoryPage() {
                     <VStack spacing={3} align="stretch">
                       {scheduledLessons.map((lesson) => (
                         <LessonCard
-                          key={lesson.id}
+                          key={lesson._id}
                           learnerName=""
-                          lessonType={lesson.type}
-                          startTime={new Date(lesson.startTime)}
-                          endTime={new Date(lesson.endTime)}
+                          type={lesson.type}
+                          startTime={format(new Date(lesson.startTime), "h:mm a")}
+                          endTime={format(new Date(lesson.endTime), "h:mm a")}
+                          duration={lesson.duration}
                           status={lesson.status}
                           paymentStatus={lesson.paymentStatus}
-                          location={lesson.location}
-                          variant="full"
+                          price={lesson.price}
+                          pickupLocation={lesson.pickupLocation}
                         />
                       ))}
                     </VStack>
@@ -118,15 +119,16 @@ export default function HistoryPage() {
                     <VStack spacing={3} align="stretch">
                       {completedLessons.map((lesson) => (
                         <LessonCard
-                          key={lesson.id}
+                          key={lesson._id}
                           learnerName=""
-                          lessonType={lesson.type}
-                          startTime={new Date(lesson.startTime)}
-                          endTime={new Date(lesson.endTime)}
+                          type={lesson.type}
+                          startTime={format(new Date(lesson.startTime), "h:mm a")}
+                          endTime={format(new Date(lesson.endTime), "h:mm a")}
+                          duration={lesson.duration}
                           status={lesson.status}
                           paymentStatus={lesson.paymentStatus}
-                          location={lesson.location}
-                          variant="full"
+                          price={lesson.price}
+                          pickupLocation={lesson.pickupLocation}
                         />
                       ))}
                     </VStack>
@@ -145,15 +147,16 @@ export default function HistoryPage() {
                     <VStack spacing={3} align="stretch">
                       {cancelledLessons.map((lesson) => (
                         <LessonCard
-                          key={lesson.id}
+                          key={lesson._id}
                           learnerName=""
-                          lessonType={lesson.type}
-                          startTime={new Date(lesson.startTime)}
-                          endTime={new Date(lesson.endTime)}
+                          type={lesson.type}
+                          startTime={format(new Date(lesson.startTime), "h:mm a")}
+                          endTime={format(new Date(lesson.endTime), "h:mm a")}
+                          duration={lesson.duration}
                           status={lesson.status}
                           paymentStatus={lesson.paymentStatus}
-                          location={lesson.location}
-                          variant="full"
+                          price={lesson.price}
+                          pickupLocation={lesson.pickupLocation}
                         />
                       ))}
                     </VStack>

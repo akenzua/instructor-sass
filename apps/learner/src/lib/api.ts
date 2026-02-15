@@ -72,6 +72,7 @@ export const lessonsApi = {
   // Get learner's lessons
   getMyLessons: async (params?: { status?: string }) => {
     const response = await api.get('/learners/me/lessons', { params });
+    console.log('Lessons response:', response);
     return response.data as Lesson[];
   },
 

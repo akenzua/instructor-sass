@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, Inject, forwardRef } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { ConfigService } from "@nestjs/config";
-import { Model } from "mongoose";
+import { Model, Types } from "mongoose";
 import { Learner, LearnerDocument } from "../../schemas/learner.schema";
 import { Lesson, LessonDocument } from "../../schemas/lesson.schema";
 import { Payment, PaymentDocument } from "../../schemas/payment.schema";
@@ -167,7 +167,8 @@ export class LearnersService {
 
   // Learner's own methods
   async getLearnerLessons(learnerId: string, query: { status?: string; limit?: number }) {
-    const filter: any = { learnerId };
+    const learnerObjectId = new Types.ObjectId(learnerId);
+    const filter: any = { learnerId: learnerObjectId };
     
     if (query.status) {
       filter.status = query.status;
@@ -186,8 +187,9 @@ export class LearnersService {
   }
 
   async getLearnerPayments(learnerId: string) {
+    const learnerObjectId = new Types.ObjectId(learnerId);
     return this.paymentModel
-      .find({ learnerId })
+      .find({ learnerId: learnerObjectId })
       .populate('instructorId', 'firstName lastName')
       .sort({ createdAt: -1 })
       .exec();
