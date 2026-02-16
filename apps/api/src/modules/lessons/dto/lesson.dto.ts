@@ -123,6 +123,10 @@ export class CancelLessonDto {
   @IsString()
   @IsOptional()
   reason?: string;
+
+  @IsEnum(["instructor", "learner", "system"])
+  @IsOptional()
+  cancelledBy?: string;
 }
 
 export class CompleteLessonDto {

@@ -37,8 +37,9 @@ export function useCancelLesson() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => lessonsApi.cancel(id),
-    onSuccess: (_, id) => {
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+      lessonsApi.cancel(id, reason),
+    onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["lessons"], refetchType: "all" });
       queryClient.invalidateQueries({ queryKey: ["lesson", id] });
       queryClient.invalidateQueries({ queryKey: ["lessons", "stats"] });

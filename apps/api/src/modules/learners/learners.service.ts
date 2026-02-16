@@ -136,9 +136,27 @@ export class LearnersService {
   }
 
   async updateBalance(id: string, amount: number): Promise<void> {
-    await this.learnerModel.findByIdAndUpdate(id, {
-      $inc: { balance: amount },
-    });
+    console.log('[UpdateBalance] Updating learner', id, 'by', amount);
+    
+    // First verify learner exists
+    const existing = await this.learnerModel.findById(id);
+    if (!existing) {
+      console.error('[UpdateBalance] LEARNER NOT FOUND:', id);
+      throw new NotFoundException(`Learner ${id} not found for balance update`);
+    }
+    console.log('[UpdateBalance] Current balance:', existing.balance);
+    
+    const result = await this.learnerModel.findByIdAndUpdate(
+      id,
+      { $inc: { balance: amount } },
+      { new: true }
+    );
+    
+    if (!result) {
+      console.error('[UpdateBalance] findByIdAndUpdate returned null for learner:', id);
+      throw new Error(`Failed to update balance for learner ${id}`);
+    }
+    console.log('[UpdateBalance] New balance for learner', id, ':', result.balance);
   }
 
   async incrementLessonCount(id: string, completed: boolean): Promise<void> {

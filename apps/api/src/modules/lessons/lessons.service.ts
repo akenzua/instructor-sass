@@ -2,12 +2,14 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Inject,
   forwardRef,
 } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
 import { Lesson, LessonDocument } from "../../schemas/lesson.schema";
+import { Instructor, InstructorDocument } from "../../schemas/instructor.schema";
 import { CreateLessonDto, UpdateLessonDto, LessonQueryDto } from "./dto/lesson.dto";
 import { LearnersService } from "../learners/learners.service";
 
@@ -16,6 +18,8 @@ export class LessonsService {
   constructor(
     @InjectModel(Lesson.name)
     private lessonModel: Model<LessonDocument>,
+    @InjectModel(Instructor.name)
+    private instructorModel: Model<InstructorDocument>,
     @Inject(forwardRef(() => LearnersService))
     private learnersService: LearnersService
   ) {}
@@ -170,7 +174,8 @@ export class LessonsService {
   async cancel(
     instructorId: string,
     id: string,
-    reason?: string
+    reason?: string,
+    cancelledBy: string = "instructor"
   ): Promise<LessonDocument> {
     const lesson = await this.lessonModel.findOne({ _id: new Types.ObjectId(id), instructorId: new Types.ObjectId(instructorId) });
     if (!lesson) {
@@ -181,12 +186,199 @@ export class LessonsService {
       throw new BadRequestException("Only scheduled lessons can be cancelled");
     }
 
+    // Get instructor's cancellation policy
+    const instructor = await this.instructorModel.findById(instructorId);
+    const policy = instructor?.cancellationPolicy;
+
+    // Calculate cancellation fee based on policy and who cancelled
+    const { fee, refund } = this.calculateCancellationFee(
+      lesson.price,
+      lesson.startTime,
+      cancelledBy,
+      policy
+    );
+
     lesson.status = "cancelled";
     lesson.cancellationReason = reason;
+    lesson.cancelledBy = cancelledBy;
+    lesson.cancellationFee = fee;
+    lesson.cancellationRefundAmount = refund;
     lesson.cancelledAt = new Date();
     await lesson.save();
 
+    // Adjust learner balance: charge the fee (negative = owes money)
+    if (fee > 0) {
+      await this.learnersService.updateBalance(
+        lesson.learnerId.toString(),
+        -fee
+      );
+    }
+
     return this.findById(instructorId, id);
+  }
+
+  /**
+   * Allow a learner to cancel their own lesson.
+   * Enforces the instructor's cancellation policy.
+   */
+  async cancelByLearner(
+    learnerId: string,
+    lessonId: string,
+    reason?: string
+  ): Promise<{ lesson: LessonDocument; fee: number; refund: number }> {
+    const lesson = await this.lessonModel.findOne({
+      _id: new Types.ObjectId(lessonId),
+      learnerId: new Types.ObjectId(learnerId),
+    });
+    if (!lesson) {
+      throw new NotFoundException("Lesson not found");
+    }
+
+    if (lesson.status !== "scheduled") {
+      throw new BadRequestException("Only scheduled lessons can be cancelled");
+    }
+
+    // Get instructor's cancellation policy
+    const instructor = await this.instructorModel.findById(lesson.instructorId);
+    const policy = instructor?.cancellationPolicy;
+
+    // Check if learner cancellation is allowed
+    if (policy && !policy.allowLearnerCancellation) {
+      throw new ForbiddenException(
+        "Your instructor does not allow learner-initiated cancellations. Please contact your instructor directly."
+      );
+    }
+
+    // Calculate fee
+    const { fee, refund } = this.calculateCancellationFee(
+      lesson.price,
+      lesson.startTime,
+      "learner",
+      policy
+    );
+
+    lesson.status = "cancelled";
+    lesson.cancellationReason = reason;
+    lesson.cancelledBy = "learner";
+    lesson.cancellationFee = fee;
+    lesson.cancellationRefundAmount = refund;
+    lesson.cancelledAt = new Date();
+    await lesson.save();
+
+    // Charge the cancellation fee to learner balance
+    if (fee > 0) {
+      await this.learnersService.updateBalance(learnerId, -fee);
+    }
+
+    return { lesson, fee, refund };
+  }
+
+  /**
+   * Preview what the cancellation fee would be for a learner
+   * without actually cancelling.
+   */
+  async previewCancellationFee(
+    learnerId: string,
+    lessonId: string
+  ): Promise<{
+    lessonId: string;
+    lessonPrice: number;
+    paymentStatus: string;
+    fee: number;
+    refundAmount: number;
+    chargePercent: number;
+    hoursUntilLesson: number;
+    tier: string;
+    currentBalance: number;
+    balanceAfterCancel: number;
+    policyText?: string;
+    allowLearnerCancellation: boolean;
+  }> {
+    const lesson = await this.lessonModel.findOne({
+      _id: new Types.ObjectId(lessonId),
+      learnerId: new Types.ObjectId(learnerId),
+    });
+    if (!lesson) {
+      throw new NotFoundException("Lesson not found");
+    }
+
+    const instructor = await this.instructorModel.findById(lesson.instructorId);
+    const policy = instructor?.cancellationPolicy;
+
+    // Get current learner balance
+    const learner = await this.learnersService.findByIdAny(learnerId);
+    const currentBalance = learner?.balance ?? 0;
+
+    const hoursUntil = (lesson.startTime.getTime() - Date.now()) / (1000 * 60 * 60);
+    const { fee, refund, chargePercent, tier } = this.calculateCancellationFee(
+      lesson.price,
+      lesson.startTime,
+      "learner",
+      policy
+    );
+
+    // Balance after cancellation: fee is deducted
+    const balanceAfterCancel = Math.round((currentBalance - fee) * 100) / 100;
+
+    return {
+      lessonId: lesson._id.toString(),
+      lessonPrice: lesson.price,
+      paymentStatus: lesson.paymentStatus,
+      fee,
+      refundAmount: refund,
+      chargePercent,
+      hoursUntilLesson: Math.max(0, Math.round(hoursUntil * 10) / 10),
+      tier,
+      currentBalance,
+      balanceAfterCancel,
+      policyText: policy?.policyText,
+      allowLearnerCancellation: policy?.allowLearnerCancellation ?? true,
+    };
+  }
+
+  /**
+   * Calculate cancellation fee and refund amounts based on policy.
+   */
+  private calculateCancellationFee(
+    lessonPrice: number,
+    lessonStartTime: Date,
+    cancelledBy: string,
+    policy?: any
+  ): { fee: number; refund: number; chargePercent: number; tier: string } {
+    // If instructor cancels, no fee to the learner
+    if (cancelledBy === "instructor") {
+      return { fee: 0, refund: lessonPrice, chargePercent: 0, tier: "instructor-cancelled" };
+    }
+
+    // Default policy if instructor hasn't configured one
+    const freeWindow = policy?.freeCancellationWindowHours ?? 48;
+    const lateWindow = policy?.lateCancellationWindowHours ?? 24;
+    const lateCharge = policy?.lateCancellationChargePercent ?? 50;
+    const veryLateCharge = policy?.veryLateCancellationChargePercent ?? 100;
+
+    const hoursUntil = (lessonStartTime.getTime() - Date.now()) / (1000 * 60 * 60);
+
+    let chargePercent: number;
+    let tier: string;
+
+    if (hoursUntil >= freeWindow) {
+      // Free cancellation window
+      chargePercent = 0;
+      tier = "free";
+    } else if (hoursUntil >= lateWindow) {
+      // Late cancellation window
+      chargePercent = lateCharge;
+      tier = "late";
+    } else {
+      // Very late cancellation (under threshold)
+      chargePercent = veryLateCharge;
+      tier = "very-late";
+    }
+
+    const fee = Math.round((lessonPrice * chargePercent) / 100 * 100) / 100;
+    const refund = Math.round((lessonPrice - fee) * 100) / 100;
+
+    return { fee, refund, chargePercent, tier };
   }
 
   async complete(

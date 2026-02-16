@@ -84,6 +84,31 @@ export const lessonsApi = {
     const lessons = response.data as Lesson[];
     return lessons[0] || null;
   },
+
+  // Preview cancellation fee before cancelling
+  previewCancellationFee: async (lessonId: string) => {
+    const response = await api.get(`/learners/me/lessons/${lessonId}/cancel-preview`);
+    return response.data as {
+      lessonId: string;
+      lessonPrice: number;
+      paymentStatus: string;
+      fee: number;
+      refundAmount: number;
+      chargePercent: number;
+      hoursUntilLesson: number;
+      tier: 'free' | 'late' | 'very-late';
+      currentBalance: number;
+      balanceAfterCancel: number;
+      policyText?: string;
+      allowLearnerCancellation: boolean;
+    };
+  },
+
+  // Cancel a lesson
+  cancelLesson: async (lessonId: string, reason?: string) => {
+    const response = await api.post(`/learners/me/lessons/${lessonId}/cancel`, { reason });
+    return response.data as Lesson;
+  },
 };
 
 // Payments API

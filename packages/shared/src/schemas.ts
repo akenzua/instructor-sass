@@ -83,6 +83,7 @@ export const instructorSchema = z.object({
   hourlyRate: z.number().positive().default(45),
   lessonTypes: z.array(lessonTypeConfigSchema).default([]),
   currency: z.string().default("GBP"),
+  cancellationPolicy: cancellationPolicySchema.optional(),
   stripeAccountId: z.string().optional(),
   
   // Metadata
@@ -109,6 +110,18 @@ export const updateInstructorSchema = createInstructorSchema.partial().omit({ pa
 export type ServiceArea = z.infer<typeof serviceAreaSchema>;
 export type VehicleInfo = z.infer<typeof vehicleInfoSchema>;
 export type SocialLinks = z.infer<typeof socialLinksSchema>;
+// Cancellation Policy sub-schema
+export const cancellationPolicySchema = z.object({
+  freeCancellationWindowHours: z.number().min(0).default(48),
+  lateCancellationWindowHours: z.number().min(0).default(24),
+  lateCancellationChargePercent: z.number().min(0).max(100).default(50),
+  veryLateCancellationChargePercent: z.number().min(0).max(100).default(100),
+  noShowChargePercent: z.number().min(0).max(100).default(100),
+  allowLearnerCancellation: z.boolean().default(true),
+  policyText: z.string().max(1000).optional(),
+});
+
+export type CancellationPolicy = z.infer<typeof cancellationPolicySchema>;
 export type LessonTypeConfig = z.infer<typeof lessonTypeConfigSchema>;
 export type Instructor = z.infer<typeof instructorSchema>;
 export type CreateInstructor = z.infer<typeof createInstructorSchema>;
@@ -211,6 +224,9 @@ export const lessonSchema = z.object({
   notes: z.string().optional(),
   instructorNotes: z.string().optional(), // Private notes
   cancellationReason: z.string().optional(),
+  cancelledBy: z.enum(["instructor", "learner", "system"]).optional(),
+  cancellationFee: z.number().nonnegative().optional(),
+  cancellationRefundAmount: z.number().nonnegative().optional(),
   cancelledAt: z.string().datetime().optional(),
   completedAt: z.string().datetime().optional(),
   createdAt: z.string().datetime(),
@@ -223,6 +239,9 @@ export const createLessonSchema = lessonSchema.omit({
   learner: true,
   status: true,
   paymentStatus: true,
+  cancelledBy: true,
+  cancellationFee: true,
+  cancellationRefundAmount: true,
   cancelledAt: true,
   completedAt: true,
   createdAt: true,

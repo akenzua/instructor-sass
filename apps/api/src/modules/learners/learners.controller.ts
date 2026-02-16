@@ -14,10 +14,14 @@ import {
 import { LearnersService } from "./learners.service";
 import { CreateLearnerDto, UpdateLearnerDto, LearnerQueryDto } from "./dto/learner.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { LessonsService } from "../lessons/lessons.service";
 
 @Controller("learners")
 export class LearnersController {
-  constructor(private readonly learnersService: LearnersService) {}
+  constructor(
+    private readonly learnersService: LearnersService,
+    private readonly lessonsService: LessonsService,
+  ) {}
 
   // Learner's own endpoints (authenticated as learner)
   @Get("me/lessons")
@@ -40,6 +44,30 @@ export class LearnersController {
   }
 
   // Instructor endpoints (authenticated as instructor)
+  @Get("me/lessons/:lessonId/cancel-preview")
+  @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'no-cache, no-store, must-revalidate')
+  async previewCancellationFee(
+    @Request() req: { user: { id: string; type?: string } },
+    @Param("lessonId") lessonId: string
+  ) {
+    return this.lessonsService.previewCancellationFee(req.user.id, lessonId);
+  }
+
+  @Post("me/lessons/:lessonId/cancel")
+  @UseGuards(JwtAuthGuard)
+  async cancelMyLesson(
+    @Request() req: { user: { id: string; type?: string } },
+    @Param("lessonId") lessonId: string,
+    @Body() body: { reason?: string }
+  ) {
+    return this.lessonsService.cancelByLearner(
+      req.user.id,
+      lessonId,
+      body.reason
+    );
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard)
   async create(

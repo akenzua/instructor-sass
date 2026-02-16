@@ -9,7 +9,8 @@ import {
 
 export class CreatePaymentIntentDto {
   @IsMongoId()
-  learnerId: string;
+  @IsOptional()
+  learnerId?: string;
 
   @IsArray()
   @IsMongoId({ each: true })

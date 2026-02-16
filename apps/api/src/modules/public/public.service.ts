@@ -974,10 +974,38 @@ export class PublicService {
       };
     }
 
-    // Update payment status
-    payment.status = 'succeeded';
-    payment.paidAt = new Date();
-    await payment.save();
+    // Atomically claim the payment to prevent double-processing
+    const claimed = await this.paymentModel.findOneAndUpdate(
+      { _id: payment._id, status: 'pending' },
+      { $set: { status: 'succeeded', paidAt: new Date() } },
+      { new: true }
+    );
+
+    if (!claimed) {
+      // Race condition: another call already processed it
+      const lesson = await this.lessonModel.findById(payment.lessonIds[0]);
+      return {
+        success: true,
+        message: 'Booking already confirmed',
+        bookingId: lesson?._id.toString(),
+        alreadyProcessed: true,
+      };
+    }
+
+    // Update learner balance with the payment amount
+    const learnerIdStr = payment.learnerId.toString();
+    try {
+      await this.learnerModel.findByIdAndUpdate(
+        payment.learnerId,
+        { $inc: { balance: payment.amount } }
+      );
+      console.log('[PublicBooking] Updated balance for learner:', learnerIdStr, 'by +', payment.amount);
+    } catch (err) {
+      // Revert payment status so it can be retried
+      console.error('[PublicBooking] Failed to update learner balance, reverting payment:', err);
+      await this.paymentModel.findByIdAndUpdate(payment._id, { $set: { status: 'pending', paidAt: null } });
+      throw err;
+    }
 
     // Update lesson status to scheduled and payment status to paid
     const lesson = await this.lessonModel.findByIdAndUpdate(

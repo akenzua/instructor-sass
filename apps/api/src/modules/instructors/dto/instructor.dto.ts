@@ -84,6 +84,44 @@ class LessonTypeConfigDto {
   description?: string;
 }
 
+class CancellationPolicyDto {
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  freeCancellationWindowHours?: number;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  lateCancellationWindowHours?: number;
+
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  @IsOptional()
+  lateCancellationChargePercent?: number;
+
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  @IsOptional()
+  veryLateCancellationChargePercent?: number;
+
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  @IsOptional()
+  noShowChargePercent?: number;
+
+  @IsBoolean()
+  @IsOptional()
+  allowLearnerCancellation?: boolean;
+
+  @IsString()
+  @IsOptional()
+  policyText?: string;
+}
+
 export class UpdateInstructorDto {
   @IsString()
   @IsOptional()
@@ -207,4 +245,9 @@ export class UpdateInstructorDto {
   @Type(() => LessonTypeConfigDto)
   @IsOptional()
   lessonTypes?: LessonTypeConfigDto[];
+
+  @ValidateNested()
+  @Type(() => CancellationPolicyDto)
+  @IsOptional()
+  cancellationPolicy?: CancellationPolicyDto;
 }

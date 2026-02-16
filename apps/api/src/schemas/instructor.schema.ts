@@ -84,6 +84,30 @@ export class LessonTypeConfig {
   description?: string;
 }
 
+// Sub-schema for cancellation policy
+export class CancellationPolicyConfig {
+  @Prop({ default: 48 })
+  freeCancellationWindowHours: number;
+
+  @Prop({ default: 24 })
+  lateCancellationWindowHours: number;
+
+  @Prop({ default: 50 })
+  lateCancellationChargePercent: number;
+
+  @Prop({ default: 100 })
+  veryLateCancellationChargePercent: number;
+
+  @Prop({ default: 100 })
+  noShowChargePercent: number;
+
+  @Prop({ default: true })
+  allowLearnerCancellation: boolean;
+
+  @Prop()
+  policyText?: string;
+}
+
 @Schema({ timestamps: true })
 export class Instructor {
   _id: Types.ObjectId;
@@ -181,6 +205,9 @@ export class Instructor {
 
   @Prop({ default: "GBP" })
   currency: string;
+
+  @Prop({ type: Object })
+  cancellationPolicy?: CancellationPolicyConfig;
 
   @Prop()
   stripeAccountId?: string;

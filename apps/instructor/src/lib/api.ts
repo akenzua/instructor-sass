@@ -128,6 +128,15 @@ export interface UpdateInstructorData {
     duration: number;
     description?: string;
   }>;
+  cancellationPolicy?: {
+    freeCancellationWindowHours?: number;
+    lateCancellationWindowHours?: number;
+    lateCancellationChargePercent?: number;
+    veryLateCancellationChargePercent?: number;
+    noShowChargePercent?: number;
+    allowLearnerCancellation?: boolean;
+    policyText?: string;
+  };
 }
 
 export const instructorApi = {

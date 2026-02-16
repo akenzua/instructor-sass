@@ -128,15 +128,22 @@ async function seed() {
   const WeeklyAvailability = mongoose.model('WeeklyAvailability', WeeklyAvailabilitySchema);
   const Package = mongoose.model('Package', PackageSchema);
 
-  // Clear existing data
+  // Payment schema for cleanup (no Mongoose model needed, use raw collection)
+  const PaymentSchema = new mongoose.Schema({}, { strict: false });
+  const Payment = mongoose.model('Payment', PaymentSchema);
+  const MagicLinkToken = mongoose.model('MagicLinkToken', new mongoose.Schema({}, { strict: false }));
+
+  // Clear existing data (including payments and magic link tokens)
   await Promise.all([
     Instructor.deleteMany({}),
     Learner.deleteMany({}),
     Lesson.deleteMany({}),
     WeeklyAvailability.deleteMany({}),
     Package.deleteMany({}),
+    Payment.deleteMany({}),
+    MagicLinkToken.deleteMany({}),
   ]);
-  console.log('🧹 Cleared existing data');
+  console.log('🧹 Cleared existing data (including payments)');
 
   // Create instructor
   const hashedPassword = await bcrypt.hash('password123', 12);

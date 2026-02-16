@@ -51,6 +51,7 @@ export default function HomePage() {
     );
   }
 
+
   const balance = profile?.balance ?? learner?.balance ?? 0;
   const hasDebt = balance < 0;
   const displayName = profile?.firstName || learner?.firstName || "Learner";

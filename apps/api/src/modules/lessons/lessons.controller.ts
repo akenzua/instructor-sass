@@ -69,7 +69,12 @@ export class LessonsController {
     @Param("id") id: string,
     @Body() dto: CancelLessonDto
   ) {
-    return this.lessonsService.cancel(req.user.id, id, dto.reason);
+    return this.lessonsService.cancel(
+      req.user.id,
+      id,
+      dto.reason,
+      dto.cancelledBy || "instructor"
+    );
   }
 
   @Post(":id/complete")

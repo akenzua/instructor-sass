@@ -91,11 +91,11 @@ function PaymentForm({
     }
   };
 
-  const formatCurrency = (cents: number) => {
-    return new Intl.NumberFormat('en-US', {
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-GB', {
       style: 'currency',
-      currency: 'USD',
-    }).format(cents / 100);
+      currency: 'GBP',
+    }).format(amount);
   };
 
   return (
@@ -212,13 +212,13 @@ export default function PayPage() {
     }
 
     if (amount < 1) {
-      setAmountError('Minimum payment is $1.00');
+      setAmountError('Minimum payment is £1.00');
       return;
     }
 
     setAmountError('');
-    // Convert to cents for Stripe
-    createIntentMutation.mutate(Math.round(amount * 100));
+    // Send amount in pounds — backend handles pence conversion for Stripe
+    createIntentMutation.mutate(amount);
   };
 
   if (authLoading || !isAuthenticated) {
@@ -230,9 +230,9 @@ export default function PayPage() {
   }
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-GB', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'GBP',
     }).format(amount);
   };
 
@@ -280,8 +280,8 @@ export default function PayPage() {
                     paymentIntentId={paymentIntentId!}
                     amount={
                       customAmount
-                        ? Math.round(parseFloat(customAmount) * 100)
-                        : Math.round(owedAmount * 100)
+                        ? parseFloat(customAmount)
+                        : owedAmount
                     }
                     onSuccess={() => setPaymentSuccess(true)}
                   />
@@ -326,7 +326,7 @@ export default function PayPage() {
                       <FormLabel>Payment Amount</FormLabel>
                       <InputGroup size="lg">
                         <InputLeftElement pointerEvents="none" color="text.muted">
-                          $
+                          £
                         </InputLeftElement>
                         <Input
                           type="number"

@@ -71,6 +71,66 @@ export class PaymentsService {
     };
   }
 
+  /**
+   * Create a payment intent initiated by a learner.
+   * Automatically resolves learnerId from the JWT and finds the learner's instructor.
+   */
+  async createLearnerPaymentIntent(
+    learnerId: string,
+    dto: CreatePaymentIntentDto
+  ): Promise<{ clientSecret: string; paymentId: string; paymentIntentId: string }> {
+    if (!this.stripe) {
+      throw new BadRequestException('Stripe not configured');
+    }
+
+    console.log('[CreateLearnerPayment] learnerId:', learnerId, 'amount:', dto.amount);
+
+    // Find learner to get their instructor
+    const learner = await this.learnersService.findByIdAny(learnerId);
+    if (!learner) {
+      throw new BadRequestException('Learner not found');
+    }
+    if (!learner.instructorId) {
+      throw new BadRequestException('Learner is not assigned to an instructor');
+    }
+
+    const instructorId = learner.instructorId.toString();
+    console.log('[CreateLearnerPayment] Found instructor:', instructorId, 'for learner:', learnerId);
+
+    // Create Stripe PaymentIntent
+    const paymentIntent = await this.stripe.paymentIntents.create({
+      amount: Math.round(dto.amount * 100), // Convert to pence
+      currency: 'gbp',
+      metadata: {
+        instructorId,
+        learnerId,
+        lessonIds: dto.lessonIds?.join(',') || '',
+        packageId: dto.packageId || '',
+      },
+    });
+
+    // Create payment record
+    const payment = await this.paymentModel.create({
+      instructorId,
+      learnerId,
+      lessonIds: dto.lessonIds || [],
+      packageId: dto.packageId,
+      amount: dto.amount,
+      currency: 'GBP',
+      status: 'pending',
+      method: 'card',
+      stripePaymentIntentId: paymentIntent.id,
+      stripeClientSecret: paymentIntent.client_secret,
+      description: dto.description || 'Lesson payment',
+    });
+
+    return {
+      clientSecret: paymentIntent.client_secret!,
+      paymentId: payment._id.toString(),
+      paymentIntentId: paymentIntent.id,
+    };
+  }
+
   async handleWebhook(payload: Buffer, signature: string): Promise<{ received: boolean }> {
     if (!this.stripe) {
       throw new BadRequestException('Stripe not configured');
@@ -111,26 +171,53 @@ export class PaymentsService {
   }
 
   private async handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent): Promise<void> {
-    const payment = await this.paymentModel.findOne({
-      stripePaymentIntentId: paymentIntent.id,
-    });
+    console.log('[PaymentSuccess] Processing payment intent:', paymentIntent.id);
 
-    if (!payment) return;
+    // Atomically claim the payment: only one caller can transition pending → succeeded.
+    // This prevents double-credit from concurrent webhook + confirmPayment calls.
+    const payment = await this.paymentModel.findOneAndUpdate(
+      { stripePaymentIntentId: paymentIntent.id, status: 'pending' },
+      { $set: { status: 'succeeded', paidAt: new Date() } },
+      { new: true }
+    );
 
-    payment.status = 'succeeded';
-    payment.paidAt = new Date();
-    await payment.save();
-
-    // Update lesson payment statuses
-    if (payment.lessonIds.length > 0) {
-      await this.lessonsService.updatePaymentStatus(
-        payment.lessonIds.map((id) => id.toString()),
-        'paid'
-      );
+    if (!payment) {
+      // Either no record exists or it was already processed
+      const existing = await this.paymentModel.findOne({ stripePaymentIntentId: paymentIntent.id });
+      console.log('[PaymentSuccess] No pending payment found for intent:', paymentIntent.id,
+        existing ? `(already ${existing.status})` : '(no record)');
+      return;
     }
 
+    const learnerId = payment.learnerId.toString();
+    const amount = payment.amount;
+
+    console.log('[PaymentSuccess] Claimed payment:', payment._id, 'learnerId:', learnerId, 'amount:', amount);
+
     // Update learner balance
-    await this.learnersService.updateBalance(payment.learnerId.toString(), payment.amount);
+    try {
+      await this.learnersService.updateBalance(learnerId, amount);
+      console.log('[PaymentSuccess] Balance updated for learner:', learnerId);
+    } catch (err) {
+      // Balance update failed — revert payment status so it can be retried
+      console.error('[PaymentSuccess] FAILED to update balance, reverting payment to pending:', err);
+      await this.paymentModel.findByIdAndUpdate(payment._id, { $set: { status: 'pending', paidAt: null } });
+      throw err;
+    }
+
+    // Update lesson payment statuses (non-critical)
+    if (payment.lessonIds && payment.lessonIds.length > 0) {
+      try {
+        await this.lessonsService.updatePaymentStatus(
+          payment.lessonIds.map((id) => id.toString()),
+          'paid'
+        );
+      } catch (err) {
+        console.error('[PaymentSuccess] Failed to update lesson statuses:', err);
+      }
+    }
+
+    console.log('[PaymentSuccess] Fully processed payment:', payment._id);
   }
 
   private async handlePaymentFailure(paymentIntent: Stripe.PaymentIntent): Promise<void> {
@@ -172,8 +259,11 @@ export class PaymentsService {
       throw new BadRequestException('Stripe not configured');
     }
 
+    console.log('[ConfirmPayment] Confirming payment intent:', paymentIntentId);
+
     // Fetch the PaymentIntent from Stripe to get the real status
     const paymentIntent = await this.stripe.paymentIntents.retrieve(paymentIntentId);
+    console.log('[ConfirmPayment] Stripe status:', paymentIntent.status);
 
     // Find the payment record
     const payment = await this.paymentModel.findOne({
@@ -181,16 +271,21 @@ export class PaymentsService {
     });
 
     if (!payment) {
+      console.log('[ConfirmPayment] No payment record found');
       return null;
     }
 
-    // If already processed, return as-is
+    console.log('[ConfirmPayment] Payment record found:', payment._id, 'current status:', payment.status, 'learnerId:', payment.learnerId);
+
+    // If already fully processed, return as-is
     if (payment.status === 'succeeded' || payment.status === 'failed') {
+      console.log('[ConfirmPayment] Already processed, returning as-is');
       return payment;
     }
 
     // Update based on Stripe's actual status
     if (paymentIntent.status === 'succeeded') {
+      console.log('[ConfirmPayment] Processing success...');
       await this.handlePaymentSuccess(paymentIntent);
       return this.paymentModel.findById(payment._id);
     } else if (

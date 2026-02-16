@@ -7,6 +7,7 @@ import { LearnersService } from "./learners.service";
 import { LearnersController } from "./learners.controller";
 import { InstructorsModule } from "../instructors/instructors.module";
 import { AuthModule } from "../auth/auth.module";
+import { LessonsModule } from "../lessons/lessons.module";
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { AuthModule } from "../auth/auth.module";
     ]),
     InstructorsModule,
     forwardRef(() => AuthModule),
+    forwardRef(() => LessonsModule),
   ],
   providers: [LearnersService],
   controllers: [LearnersController],

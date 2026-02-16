@@ -53,6 +53,15 @@ export class Lesson {
   @Prop()
   cancellationReason?: string;
 
+  @Prop({ enum: ["instructor", "learner", "system"] })
+  cancelledBy?: string;
+
+  @Prop({ min: 0 })
+  cancellationFee?: number;
+
+  @Prop({ min: 0 })
+  cancellationRefundAmount?: number;
+
   @Prop()
   cancelledAt?: Date;
 

@@ -22,9 +22,14 @@ export class PaymentsController {
   @Post('create-intent')
   @UseGuards(JwtAuthGuard)
   async createPaymentIntent(
-    @Request() req: { user: { id: string } },
+    @Request() req: { user: { id: string; type?: string } },
     @Body() dto: CreatePaymentIntentDto
   ) {
+    if (req.user.type === 'learner') {
+      // Learner is paying — they are the learnerId
+      return this.paymentsService.createLearnerPaymentIntent(req.user.id, dto);
+    }
+    // Instructor creating a payment for a learner
     return this.paymentsService.createPaymentIntent(req.user.id, dto);
   }
 

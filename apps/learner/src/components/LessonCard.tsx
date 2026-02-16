@@ -1,26 +1,31 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Badge,
   Box,
+  Button,
   Divider,
   HStack,
   Text,
   VStack,
+  useDisclosure,
 } from "@chakra-ui/react";
-import { Calendar, Clock, MapPin } from "lucide-react";
-import { format, formatDistanceToNow } from "date-fns";
+import { Calendar, Clock, MapPin, X } from "lucide-react";
+import { format, formatDistanceToNow, isFuture } from "date-fns";
 import { StatusBadge } from "@acme/ui";
 import type { PopulatedLesson } from "@/types";
 import { isPopulatedInstructor } from "@/types";
 import { isLessonUrgent, isLessonToday, formatLessonType } from "@/lib/utils";
+import { CancelLessonModal } from "./CancelLessonModal";
 
 interface LessonCardProps {
   lesson: PopulatedLesson;
 }
 
 export function LessonCard({ lesson }: LessonCardProps) {
+  const { isOpen, onOpen, onClose } = useDisclosure();
+
   const startTime = useMemo(
     () => new Date(lesson.startTime),
     [lesson.startTime]
@@ -32,6 +37,7 @@ export function LessonCard({ lesson }: LessonCardProps) {
 
   const urgent = isLessonUrgent(startTime);
   const today = isLessonToday(startTime);
+  const canCancel = lesson.status === "scheduled" && isFuture(startTime);
 
   return (
     <Box
@@ -99,6 +105,27 @@ export function LessonCard({ lesson }: LessonCardProps) {
           </HStack>
         )}
       </VStack>
+
+      {canCancel && (
+        <>
+          <Divider my={3} />
+          <Button
+            size="sm"
+            variant="ghost"
+            colorScheme="red"
+            leftIcon={<X size={14} />}
+            onClick={onOpen}
+          >
+            Cancel Lesson
+          </Button>
+          <CancelLessonModal
+            isOpen={isOpen}
+            onClose={onClose}
+            lessonId={lesson._id}
+            lessonDate={format(startTime, "EEEE, MMMM d 'at' h:mm a")}
+          />
+        </>
+      )}
     </Box>
   );
 }

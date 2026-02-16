@@ -39,13 +39,7 @@ import {
   Alert,
   AlertIcon,
   Link,
-  IconButton,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
+  IconButton
 } from "@chakra-ui/react";
 import {
   CheckCircle,
@@ -59,6 +53,7 @@ import {
   Plus,
   Trash2,
   Edit2,
+  Shield,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useUpdateInstructor, useCheckUsername } from "@/hooks/mutations";
@@ -99,6 +94,15 @@ export default function SettingsPage() {
         qualifications: (instructor as any).qualifications || [],
         languages: (instructor as any).languages || [],
         lessonTypes: (instructor as any).lessonTypes || [],
+        cancellationPolicy: (instructor as any).cancellationPolicy || {
+          freeCancellationWindowHours: 48,
+          lateCancellationWindowHours: 24,
+          lateCancellationChargePercent: 50,
+          veryLateCancellationChargePercent: 100,
+          noShowChargePercent: 100,
+          allowLearnerCancellation: true,
+          policyText: "",
+        },
       });
       
       // Set initial username status
@@ -198,6 +202,7 @@ export default function SettingsPage() {
             <Tab><Icon as={DollarSign} mr={2} boxSize={4} /> Services</Tab>
             <Tab><Icon as={Car} mr={2} boxSize={4} /> Vehicle</Tab>
             <Tab><Icon as={Settings} mr={2} boxSize={4} /> Business</Tab>
+            <Tab><Icon as={Shield} mr={2} boxSize={4} /> Policies</Tab>
           </TabList>
 
           <TabPanels>
@@ -723,6 +728,268 @@ export default function SettingsPage() {
                 </CardBody>
               </Card>
             </TabPanel>
+
+            {/* Cancellation Policy Tab */}
+            <TabPanel px={0}>
+              <Card>
+                <CardHeader>
+                  <Heading size="md">Cancellation Policy</Heading>
+                  <Text fontSize="sm" color="gray.600" mt={1}>
+                    Configure how cancellations are handled and what fees apply
+                  </Text>
+                </CardHeader>
+                <CardBody>
+                  <VStack spacing={6} align="stretch">
+                    <Alert status="info" borderRadius="md">
+                      <AlertIcon />
+                      <Box>
+                        <Text fontSize="sm" fontWeight="medium">
+                          How the policy works
+                        </Text>
+                        <Text fontSize="xs" color="gray.600">
+                          When a learner cancels, the fee depends on how far in advance they cancel.
+                          Instructor-initiated cancellations are always free for the learner.
+                        </Text>
+                      </Box>
+                    </Alert>
+
+                    <Divider />
+
+                    <Box>
+                      <Heading size="sm" mb={4}>Time Windows</Heading>
+                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                        <FormControl>
+                          <FormLabel>Free cancellation window</FormLabel>
+                          <InputGroup>
+                            <NumberInput
+                              value={formData.cancellationPolicy?.freeCancellationWindowHours ?? 48}
+                              onChange={(_, val) =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  cancellationPolicy: {
+                                    ...prev.cancellationPolicy,
+                                    freeCancellationWindowHours: val || 0,
+                                  },
+                                }))
+                              }
+                              min={0}
+                              max={168}
+                              w="full"
+                            >
+                              <NumberInputField />
+                            </NumberInput>
+                          </InputGroup>
+                          <FormHelperText>
+                            Hours before lesson. Cancellations within this window are free.
+                          </FormHelperText>
+                        </FormControl>
+
+                        <FormControl>
+                          <FormLabel>Late cancellation window</FormLabel>
+                          <InputGroup>
+                            <NumberInput
+                              value={formData.cancellationPolicy?.lateCancellationWindowHours ?? 24}
+                              onChange={(_, val) =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  cancellationPolicy: {
+                                    ...prev.cancellationPolicy,
+                                    lateCancellationWindowHours: val || 0,
+                                  },
+                                }))
+                              }
+                              min={0}
+                              max={168}
+                              w="full"
+                            >
+                              <NumberInputField />
+                            </NumberInput>
+                          </InputGroup>
+                          <FormHelperText>
+                            Hours before lesson. Between this and the free window, partial charge applies.
+                          </FormHelperText>
+                        </FormControl>
+                      </SimpleGrid>
+                    </Box>
+
+                    <Divider />
+
+                    <Box>
+                      <Heading size="sm" mb={4}>Charge Percentages</Heading>
+                      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+                        <FormControl>
+                          <FormLabel>Late cancellation charge</FormLabel>
+                          <InputGroup>
+                            <NumberInput
+                              value={formData.cancellationPolicy?.lateCancellationChargePercent ?? 50}
+                              onChange={(_, val) =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  cancellationPolicy: {
+                                    ...prev.cancellationPolicy,
+                                    lateCancellationChargePercent: val || 0,
+                                  },
+                                }))
+                              }
+                              min={0}
+                              max={100}
+                              w="full"
+                            >
+                              <NumberInputField />
+                            </NumberInput>
+                            <InputRightElement pointerEvents="none" color="gray.500" fontSize="sm">
+                              %
+                            </InputRightElement>
+                          </InputGroup>
+                          <FormHelperText>
+                            Between {formData.cancellationPolicy?.lateCancellationWindowHours ?? 24}h and {formData.cancellationPolicy?.freeCancellationWindowHours ?? 48}h before
+                          </FormHelperText>
+                        </FormControl>
+
+                        <FormControl>
+                          <FormLabel>Very late cancellation charge</FormLabel>
+                          <InputGroup>
+                            <NumberInput
+                              value={formData.cancellationPolicy?.veryLateCancellationChargePercent ?? 100}
+                              onChange={(_, val) =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  cancellationPolicy: {
+                                    ...prev.cancellationPolicy,
+                                    veryLateCancellationChargePercent: val || 0,
+                                  },
+                                }))
+                              }
+                              min={0}
+                              max={100}
+                              w="full"
+                            >
+                              <NumberInputField />
+                            </NumberInput>
+                            <InputRightElement pointerEvents="none" color="gray.500" fontSize="sm">
+                              %
+                            </InputRightElement>
+                          </InputGroup>
+                          <FormHelperText>
+                            Under {formData.cancellationPolicy?.lateCancellationWindowHours ?? 24}h before
+                          </FormHelperText>
+                        </FormControl>
+
+                        <FormControl>
+                          <FormLabel>No-show charge</FormLabel>
+                          <InputGroup>
+                            <NumberInput
+                              value={formData.cancellationPolicy?.noShowChargePercent ?? 100}
+                              onChange={(_, val) =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  cancellationPolicy: {
+                                    ...prev.cancellationPolicy,
+                                    noShowChargePercent: val || 0,
+                                  },
+                                }))
+                              }
+                              min={0}
+                              max={100}
+                              w="full"
+                            >
+                              <NumberInputField />
+                            </NumberInput>
+                            <InputRightElement pointerEvents="none" color="gray.500" fontSize="sm">
+                              %
+                            </InputRightElement>
+                          </InputGroup>
+                          <FormHelperText>
+                            When learner doesn't show up
+                          </FormHelperText>
+                        </FormControl>
+                      </SimpleGrid>
+                    </Box>
+
+                    <Divider />
+
+                    <Box>
+                      <Heading size="sm" mb={4}>Learner Settings</Heading>
+                      <VStack spacing={4} align="stretch">
+                        <FormControl display="flex" alignItems="center" justifyContent="space-between">
+                          <Box>
+                            <FormLabel mb={0}>Allow learner self-cancellation</FormLabel>
+                            <FormHelperText mt={1}>
+                              When enabled, learners can cancel lessons from their portal
+                            </FormHelperText>
+                          </Box>
+                          <Switch
+                            isChecked={formData.cancellationPolicy?.allowLearnerCancellation ?? true}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                cancellationPolicy: {
+                                  ...prev.cancellationPolicy,
+                                  allowLearnerCancellation: e.target.checked,
+                                },
+                              }))
+                            }
+                            colorScheme="primary"
+                          />
+                        </FormControl>
+
+                        <FormControl>
+                          <FormLabel>Custom policy text (shown to learners)</FormLabel>
+                          <Textarea
+                            value={formData.cancellationPolicy?.policyText || ""}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                cancellationPolicy: {
+                                  ...prev.cancellationPolicy,
+                                  policyText: e.target.value,
+                                },
+                              }))
+                            }
+                            placeholder="e.g. Please give at least 48 hours notice for cancellations. Late cancellations may incur a fee."
+                            rows={3}
+                          />
+                          <FormHelperText>
+                            Optional. This text is shown to learners when they attempt to cancel.
+                          </FormHelperText>
+                        </FormControl>
+                      </VStack>
+                    </Box>
+
+                    <Divider />
+
+                    <Box p={4} bg="gray.50" borderRadius="md">
+                      <Heading size="xs" mb={3}>Policy Summary</Heading>
+                      <VStack spacing={2} align="stretch" fontSize="sm">
+                        <HStack justify="space-between">
+                          <Text color="gray.600">{formData.cancellationPolicy?.freeCancellationWindowHours ?? 48}+ hours before</Text>
+                          <Badge colorScheme="green">Free cancellation</Badge>
+                        </HStack>
+                        <HStack justify="space-between">
+                          <Text color="gray.600">{formData.cancellationPolicy?.lateCancellationWindowHours ?? 24}-{formData.cancellationPolicy?.freeCancellationWindowHours ?? 48} hours before</Text>
+                          <Badge colorScheme="yellow">{formData.cancellationPolicy?.lateCancellationChargePercent ?? 50}% charge</Badge>
+                        </HStack>
+                        <HStack justify="space-between">
+                          <Text color="gray.600">Under {formData.cancellationPolicy?.lateCancellationWindowHours ?? 24} hours</Text>
+                          <Badge colorScheme="red">{formData.cancellationPolicy?.veryLateCancellationChargePercent ?? 100}% charge</Badge>
+                        </HStack>
+                        <HStack justify="space-between">
+                          <Text color="gray.600">No-show</Text>
+                          <Badge colorScheme="red">{formData.cancellationPolicy?.noShowChargePercent ?? 100}% charge</Badge>
+                        </HStack>
+                        <HStack justify="space-between">
+                          <Text color="gray.600">Learner self-cancel</Text>
+                          <Badge colorScheme={formData.cancellationPolicy?.allowLearnerCancellation !== false ? "green" : "gray"}>
+                            {formData.cancellationPolicy?.allowLearnerCancellation !== false ? "Allowed" : "Disabled"}
+                          </Badge>
+                        </HStack>
+                      </VStack>
+                    </Box>
+                  </VStack>
+                </CardBody>
+              </Card>
+            </TabPanel>
+
           </TabPanels>
         </Tabs>
 

@@ -23,10 +23,13 @@ import {
   AlertDialogContent,
   AlertDialogOverlay,
   useDisclosure,
+  Textarea,
+  FormControl,
+  FormLabel,
 } from "@chakra-ui/react";
 import { Calendar, Clock, MapPin, User, DollarSign, FileText } from "lucide-react";
 import { format } from "date-fns";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { Lesson } from "@acme/shared";
 import { useCancelLesson, useCompleteLesson } from "@/hooks";
 import { StatusBadge } from "@acme/ui";
@@ -41,6 +44,7 @@ export function LessonDrawer({ lesson, isOpen, onClose }: LessonDrawerProps) {
   const toast = useToast();
   const cancelDialog = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const [cancelReason, setCancelReason] = useState("");
 
   const cancelMutation = useCancelLesson();
   const completeMutation = useCompleteLesson();
@@ -49,12 +53,16 @@ export function LessonDrawer({ lesson, isOpen, onClose }: LessonDrawerProps) {
 
   const handleCancel = async () => {
     try {
-      await cancelMutation.mutateAsync(lesson._id);
+      await cancelMutation.mutateAsync({
+        id: lesson._id,
+        reason: cancelReason || undefined,
+      });
       toast({
         title: "Lesson cancelled",
         status: "success",
         duration: 3000,
       });
+      setCancelReason("");
       cancelDialog.onClose();
       onClose();
     } catch (error) {
@@ -267,9 +275,23 @@ export function LessonDrawer({ lesson, isOpen, onClose }: LessonDrawerProps) {
             </AlertDialogHeader>
 
             <AlertDialogBody>
-              Are you sure you want to cancel this lesson with{" "}
-              <strong>{lesson.learner ? `${lesson.learner.firstName} ${lesson.learner.lastName}` : "this learner"}</strong>? This action cannot be
-              undone.
+              <VStack spacing={4} align="stretch">
+                <Text>
+                  Are you sure you want to cancel this lesson with{" "}
+                  <strong>{lesson.learner ? `${lesson.learner.firstName} ${lesson.learner.lastName}` : "this learner"}</strong>? This action cannot be
+                  undone.
+                </Text>
+                <FormControl>
+                  <FormLabel fontSize="sm">Reason for cancellation (optional)</FormLabel>
+                  <Textarea
+                    placeholder="e.g. Learner requested reschedule, weather conditions..."
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    size="sm"
+                    rows={3}
+                  />
+                </FormControl>
+              </VStack>
             </AlertDialogBody>
 
             <AlertDialogFooter>
