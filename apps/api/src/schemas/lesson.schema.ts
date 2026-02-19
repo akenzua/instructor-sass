@@ -50,6 +50,15 @@ export class Lesson {
   @Prop()
   instructorNotes?: string;
 
+  @Prop({ type: Types.ObjectId, ref: "Package" })
+  packageId?: Types.ObjectId;
+
+  @Prop({ min: 1 })
+  packageLessonNumber?: number;
+
+  @Prop({ min: 1 })
+  packageTotalLessons?: number;
+
   @Prop()
   cancellationReason?: string;
 

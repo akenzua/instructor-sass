@@ -725,6 +725,7 @@ export class PublicService {
 
     // Create payment record
     const payment = await this.paymentModel.create({
+      type: 'lesson-booking',
       instructorId: instructor._id,
       learnerId: learner._id,
       lessonIds: [lesson._id],

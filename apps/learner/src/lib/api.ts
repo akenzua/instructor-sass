@@ -120,8 +120,8 @@ export const paymentsApi = {
   },
 
   // Create payment intent for balance
-  createPaymentIntent: async (amount: number) => {
-    const response = await api.post('/payments/create-intent', { amount });
+  createPaymentIntent: async (amount: number, instructorId?: string) => {
+    const response = await api.post('/payments/create-intent', { amount, instructorId });
     return response.data as { clientSecret: string; paymentIntentId: string };
   },
 
@@ -129,6 +129,184 @@ export const paymentsApi = {
   confirmPayment: async (paymentIntentId: string) => {
     const response = await api.post(`/payments/confirm/${paymentIntentId}`);
     return response.data as Payment;
+  },
+};
+
+// Booking API
+export const bookingApi = {
+  // Get all instructors the learner is linked to
+  getMyInstructors: async () => {
+    const response = await api.get('/learners/me/booking/instructors');
+    return response.data as {
+      instructors: Array<{
+        instructorId: string;
+        instructor: {
+          _id: string;
+          firstName: string;
+          lastName: string;
+          profileImage?: string;
+        };
+        balance: number;
+        totalLessons: number;
+        completedLessons: number;
+        status: string;
+      }>;
+      primaryInstructorId: string | null;
+    };
+  },
+
+  // Get instructor info, availability schedule, lesson types, pricing
+  getInstructorAvailability: async (instructorId?: string) => {
+    const params = instructorId ? { instructorId } : {};
+    const response = await api.get('/learners/me/booking/availability', { params });
+    return response.data as {
+      instructor: {
+        _id: string;
+        firstName: string;
+        lastName: string;
+        profileImage?: string;
+        bio?: string;
+        hourlyRate: number;
+        lessonTypes: Array<{
+          type: string;
+          price: number;
+          duration: number;
+          description?: string;
+        }>;
+        vehicleInfo?: {
+          make?: string;
+          model?: string;
+          year?: number;
+          transmission?: string;
+        };
+        serviceAreas?: Array<{
+          name: string;
+          postcode?: string;
+          radiusMiles?: number;
+        }>;
+        currency: string;
+        cancellationPolicy?: {
+          freeCancellationWindowHours: number;
+          lateCancellationWindowHours: number;
+          lateCancellationChargePercent: number;
+          policyText?: string;
+          allowLearnerCancellation: boolean;
+        };
+        acceptingNewStudents?: boolean;
+        languages?: string[];
+        username?: string;
+      } | null;
+      weeklyAvailability: Array<{
+        dayOfWeek: string;
+        slots: Array<{ start: string; end: string }>;
+        isAvailable: boolean;
+      }>;
+      unscheduledLessons: number;
+      balance: number;
+      needsInstructor: boolean;
+      allInstructors: Array<{
+        instructorId: string;
+        name: string;
+        profileImage?: string;
+        balance: number;
+        totalLessons: number;
+      }>;
+    };
+  },
+
+  // Switch the primary instructor
+  switchInstructor: async (instructorId: string) => {
+    const response = await api.post('/learners/me/booking/switch-instructor', {
+      instructorId,
+    });
+    return response.data;
+  },
+
+  // Link to a new instructor
+  linkInstructor: async (instructorId: string) => {
+    const response = await api.post('/learners/me/booking/link-instructor', {
+      instructorId,
+    });
+    return response.data as {
+      linkId: string;
+      instructorId: string;
+      balance: number;
+      status: string;
+    };
+  },
+
+  // Get packages available from instructor
+  getPackages: async (instructorId?: string) => {
+    const params = instructorId ? { instructorId } : {};
+    const response = await api.get('/learners/me/booking/packages', { params });
+    return response.data as Array<{
+      _id: string;
+      name: string;
+      description?: string;
+      lessonCount: number;
+      price: number;
+      discountPercent: number;
+      isActive: boolean;
+    }>;
+  },
+
+  // Book a single lesson (deducts from link balance)
+  bookLesson: async (data: {
+    startTime: string;
+    duration: number;
+    type?: string;
+    instructorId?: string;
+    pickupLocation?: string;
+    notes?: string;
+  }) => {
+    const response = await api.post('/learners/me/booking/lesson', data);
+    return response.data as {
+      lesson: any;
+      newBalance: number;
+    };
+  },
+
+  // Book a package (deducts from link balance)
+  bookPackage: async (data: { packageId: string; notes?: string }) => {
+    const response = await api.post('/learners/me/booking/package', data);
+    return response.data as {
+      package: { _id: string; name: string; lessonCount: number; price: number };
+      lessons: Array<{ _id: string }>;
+      newBalance: number;
+    };
+  },
+};
+
+// Public search API (no auth needed)
+export const searchApi = {
+  // Search for instructors by location and filters
+  searchInstructors: async (params: {
+    postcode?: string;
+    latitude?: number;
+    longitude?: number;
+    radius?: number;
+    transmission?: string;
+    lessonType?: string;
+    maxPrice?: number;
+    language?: string;
+    sortBy?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const response = await api.get('/search/instructors', { params });
+    return response.data;
+  },
+
+  // Get instructor public profile
+  getInstructorProfile: async (usernameOrId: string) => {
+    const response = await api.get(`/search/instructors/${usernameOrId}`);
+    return response.data;
+  },
+
+  // Resolve a UK postcode to coordinates
+  resolvePostcode: async (postcode: string) => {
+    const response = await api.get(`/search/postcode/${postcode}`);
+    return response.data as { latitude: number; longitude: number; postcode: string };
   },
 };
 

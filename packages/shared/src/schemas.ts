@@ -360,10 +360,20 @@ export const paymentMethodSchema = z.enum([
   "card",
   "cash",
   "bank_transfer",
+  "balance",
+]);
+
+export const paymentTypeSchema = z.enum([
+  "top-up",
+  "lesson-booking",
+  "package-booking",
+  "cancellation-fee",
+  "refund",
 ]);
 
 export const paymentSchema = z.object({
   _id: objectIdSchema,
+  type: paymentTypeSchema.default("top-up"),
   instructorId: objectIdSchema,
   learnerId: objectIdSchema,
   learner: learnerSchema.pick({ firstName: true, lastName: true, email: true }).optional(),
@@ -393,6 +403,7 @@ export const createPaymentIntentSchema = z.object({
 
 export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
 export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
+export type PaymentType = z.infer<typeof paymentTypeSchema>;
 export type Payment = z.infer<typeof paymentSchema>;
 export type CreatePaymentIntent = z.infer<typeof createPaymentIntentSchema>;
 

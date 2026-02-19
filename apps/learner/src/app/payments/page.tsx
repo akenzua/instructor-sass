@@ -22,7 +22,7 @@ import {
   Td,
   TableContainer,
 } from "@chakra-ui/react";
-import { ArrowLeft, DollarSign } from "lucide-react";
+import { ArrowLeft, PoundSterling } from "lucide-react";
 import { format } from "date-fns";
 import { PageHeader } from "@acme/ui";
 import { useLearnerAuth } from "@/lib/auth";
@@ -45,10 +45,36 @@ export default function PaymentsPage() {
   }, [authLoading, isAuthenticated, router]);
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat("en-GB", {
       style: "currency",
-      currency: "USD",
+      currency: "GBP",
     }).format(amount);
+  };
+
+  const getPaymentDescription = (payment: any) => {
+    if (payment.description) return payment.description;
+    switch (payment.type) {
+      case 'top-up': return 'Account top-up';
+      case 'lesson-booking': return 'Lesson booking';
+      case 'package-booking': return 'Package purchase';
+      case 'cancellation-fee': return 'Cancellation fee';
+      case 'refund': return 'Refund';
+      default:
+        if (payment.lessonIds?.length > 0) return 'Lesson Payment';
+        return 'Account Credit';
+    }
+  };
+
+  const getInstructorName = (payment: any) => {
+    if (payment.instructorId && typeof payment.instructorId === 'object') {
+      return `${payment.instructorId.firstName} ${payment.instructorId.lastName}`;
+    }
+    return '—';
+  };
+
+  // Determines if this is money coming in (positive for learner) or going out
+  const isCredit = (payment: any) => {
+    return payment.type === 'top-up' || payment.type === 'refund';
   };
 
   const getStatusColor = (status: string) => {
@@ -98,7 +124,7 @@ export default function PaymentsPage() {
             actions={
               <Button
                 colorScheme="primary"
-                leftIcon={<DollarSign size={16} />}
+                leftIcon={<PoundSterling size={16} />}
                 onClick={() => router.push("/pay")}
               >
                 Make Payment
@@ -123,13 +149,14 @@ export default function PaymentsPage() {
                       <Tr>
                         <Th>Date</Th>
                         <Th>Description</Th>
-                        <Th>Amount</Th>
+                        <Th>Instructor</Th>
+                        <Th isNumeric>Amount</Th>
                         <Th>Status</Th>
                       </Tr>
                     </Thead>
                     <Tbody>
-                      {payments.map((payment) => (
-                        <Tr key={payment.id}>
+                      {payments.map((payment: any) => (
+                        <Tr key={payment._id || payment.id}>
                           <Td>
                             <Text>
                               {format(new Date(payment.createdAt), "MMM d, yyyy")}
@@ -139,14 +166,15 @@ export default function PaymentsPage() {
                             </Text>
                           </Td>
                           <Td>
-                            <Text>
-                              {payment.lessonId
-                                ? "Lesson Payment"
-                                : "Account Credit"}
-                            </Text>
+                            <Text>{getPaymentDescription(payment)}</Text>
                           </Td>
-                          <Td fontWeight="semibold">
-                            {formatCurrency(payment.amount)}
+                          <Td>
+                            <Text fontSize="sm">{getInstructorName(payment)}</Text>
+                          </Td>
+                          <Td fontWeight="semibold" isNumeric>
+                            <Text color={isCredit(payment) ? 'green.500' : 'red.500'}>
+                              {isCredit(payment) ? '+' : '−'}{formatCurrency(payment.amount)}
+                            </Text>
                           </Td>
                           <Td>
                             <Badge colorScheme={getStatusColor(payment.status)}>

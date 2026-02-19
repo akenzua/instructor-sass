@@ -6,6 +6,7 @@ import Stripe from 'stripe';
 import { Payment, PaymentDocument } from '../../schemas/payment.schema';
 import { CreatePaymentIntentDto } from './dto/payment.dto';
 import { LearnersService } from '../learners/learners.service';
+import { LearnerLinkService } from '../learners/learner-link.service';
 import { LessonsService } from '../lessons/lessons.service';
 
 @Injectable()
@@ -19,7 +20,8 @@ export class PaymentsService {
     @Inject(forwardRef(() => LearnersService))
     private learnersService: LearnersService,
     @Inject(forwardRef(() => LessonsService))
-    private lessonsService: LessonsService
+    private lessonsService: LessonsService,
+    private linkService: LearnerLinkService,
   ) {
     const stripeKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (stripeKey) {
@@ -51,6 +53,7 @@ export class PaymentsService {
 
     // Create payment record
     const payment = await this.paymentModel.create({
+      type: 'top-up',
       instructorId,
       learnerId: dto.learnerId,
       lessonIds: dto.lessonIds || [],
@@ -90,11 +93,19 @@ export class PaymentsService {
     if (!learner) {
       throw new BadRequestException('Learner not found');
     }
-    if (!learner.instructorId) {
-      throw new BadRequestException('Learner is not assigned to an instructor');
+
+    // Resolve instructor: explicit from DTO, primary on learner, or fallback to most recent link
+    let instructorId = dto.instructorId || learner.instructorId?.toString();
+    if (!instructorId) {
+      const links = await this.linkService.getLearnerInstructors(learnerId);
+      if (links.length > 0) {
+        instructorId = links[0].instructorId.toString();
+      }
+    }
+    if (!instructorId) {
+      throw new BadRequestException('No linked instructor found. Please link to an instructor first.');
     }
 
-    const instructorId = learner.instructorId.toString();
     console.log('[CreateLearnerPayment] Found instructor:', instructorId, 'for learner:', learnerId);
 
     // Create Stripe PaymentIntent
@@ -111,6 +122,7 @@ export class PaymentsService {
 
     // Create payment record
     const payment = await this.paymentModel.create({
+      type: 'top-up',
       instructorId,
       learnerId,
       lessonIds: dto.lessonIds || [],
@@ -121,7 +133,7 @@ export class PaymentsService {
       method: 'card',
       stripePaymentIntentId: paymentIntent.id,
       stripeClientSecret: paymentIntent.client_secret,
-      description: dto.description || 'Lesson payment',
+      description: dto.description || 'Account top-up',
     });
 
     return {

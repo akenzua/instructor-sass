@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Box,
@@ -60,6 +60,14 @@ function PaymentForm({
 
     setIsProcessing(true);
     setError(null);
+
+    // Validate the Payment Element first
+    const { error: elementsError } = await elements.submit();
+    if (elementsError) {
+      setError(elementsError.message || 'Please check your payment details.');
+      setIsProcessing(false);
+      return;
+    }
 
     const { error: submitError } = await stripe.confirmPayment({
       elements,
@@ -161,6 +169,8 @@ function PaymentSuccess() {
 
 export default function PayPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const instructorId = searchParams.get('instructorId') || undefined;
   const toast = useToast();
   const { isAuthenticated, isLoading: authLoading, learner } = useLearnerAuth();
 
@@ -179,7 +189,7 @@ export default function PayPage() {
 
   // Create payment intent mutation
   const createIntentMutation = useMutation({
-    mutationFn: (amount: number) => paymentsApi.createPaymentIntent(amount),
+    mutationFn: (amount: number) => paymentsApi.createPaymentIntent(amount, instructorId),
     onSuccess: (data) => {
       setClientSecret(data.clientSecret);
       setPaymentIntentId(data.paymentIntentId);

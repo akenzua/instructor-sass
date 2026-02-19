@@ -10,6 +10,7 @@ import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
 import { Lesson, LessonDocument } from "../../schemas/lesson.schema";
 import { Instructor, InstructorDocument } from "../../schemas/instructor.schema";
+import { Payment, PaymentDocument } from "../../schemas/payment.schema";
 import { CreateLessonDto, UpdateLessonDto, LessonQueryDto } from "./dto/lesson.dto";
 import { LearnersService } from "../learners/learners.service";
 
@@ -20,6 +21,8 @@ export class LessonsService {
     private lessonModel: Model<LessonDocument>,
     @InjectModel(Instructor.name)
     private instructorModel: Model<InstructorDocument>,
+    @InjectModel(Payment.name)
+    private paymentModel: Model<PaymentDocument>,
     @Inject(forwardRef(() => LearnersService))
     private learnersService: LearnersService
   ) {}
@@ -212,6 +215,50 @@ export class LessonsService {
         lesson.learnerId.toString(),
         -fee
       );
+
+      // Create payment record for the cancellation fee charged to learner
+      const instructorName = instructor
+        ? `${instructor.firstName} ${instructor.lastName}`.trim()
+        : 'Instructor';
+      const lessonDate = lesson.startTime.toLocaleDateString('en-GB', {
+        weekday: 'short', day: 'numeric', month: 'short',
+      });
+      await this.paymentModel.create({
+        type: 'cancellation-fee',
+        instructorId: lesson.instructorId,
+        learnerId: lesson.learnerId,
+        lessonIds: [lesson._id],
+        amount: fee,
+        currency: 'GBP',
+        status: 'succeeded',
+        method: 'balance',
+        description: `Cancellation fee — lesson on ${lessonDate} (cancelled by ${cancelledBy})`,
+        paidAt: new Date(),
+      });
+    }
+
+    // If there's a refund back to learner, record it
+    if (refund > 0) {
+      await this.learnersService.updateBalance(
+        lesson.learnerId.toString(),
+        refund
+      );
+
+      const lessonDate = lesson.startTime.toLocaleDateString('en-GB', {
+        weekday: 'short', day: 'numeric', month: 'short',
+      });
+      await this.paymentModel.create({
+        type: 'refund',
+        instructorId: lesson.instructorId,
+        learnerId: lesson.learnerId,
+        lessonIds: [lesson._id],
+        amount: refund,
+        currency: 'GBP',
+        status: 'succeeded',
+        method: 'balance',
+        description: `Cancellation refund — lesson on ${lessonDate}`,
+        paidAt: new Date(),
+      });
     }
 
     return this.findById(instructorId, id);
@@ -268,6 +315,50 @@ export class LessonsService {
     // Charge the cancellation fee to learner balance
     if (fee > 0) {
       await this.learnersService.updateBalance(learnerId, -fee);
+
+      // Create payment record for the cancellation fee
+      const instructorName = instructor
+        ? `${instructor.firstName} ${instructor.lastName}`.trim()
+        : 'Instructor';
+      const lessonDate = lesson.startTime.toLocaleDateString('en-GB', {
+        weekday: 'short', day: 'numeric', month: 'short',
+      });
+      await this.paymentModel.create({
+        type: 'cancellation-fee',
+        instructorId: lesson.instructorId,
+        learnerId: new Types.ObjectId(learnerId),
+        lessonIds: [lesson._id],
+        amount: fee,
+        currency: 'GBP',
+        status: 'succeeded',
+        method: 'balance',
+        description: `Cancellation fee — lesson with ${instructorName} on ${lessonDate}`,
+        paidAt: new Date(),
+      });
+    }
+
+    // If there's a refund back to balance, record it
+    if (refund > 0) {
+      await this.learnersService.updateBalance(learnerId, refund);
+
+      const instructorName = instructor
+        ? `${instructor.firstName} ${instructor.lastName}`.trim()
+        : 'Instructor';
+      const lessonDate = lesson.startTime.toLocaleDateString('en-GB', {
+        weekday: 'short', day: 'numeric', month: 'short',
+      });
+      await this.paymentModel.create({
+        type: 'refund',
+        instructorId: lesson.instructorId,
+        learnerId: new Types.ObjectId(learnerId),
+        lessonIds: [lesson._id],
+        amount: refund,
+        currency: 'GBP',
+        status: 'succeeded',
+        method: 'balance',
+        description: `Cancellation refund — lesson with ${instructorName} on ${lessonDate}`,
+        paidAt: new Date(),
+      });
     }
 
     return { lesson, fee, refund };

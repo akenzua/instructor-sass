@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Button, Card, CardBody, Heading, VStack } from "@chakra-ui/react";
-import { Calendar, DollarSign } from "lucide-react";
+import { Calendar, DollarSign, BookOpen } from "lucide-react";
 
 export function QuickActionsCard() {
   const router = useRouter();
@@ -14,6 +14,14 @@ export function QuickActionsCard() {
           Quick Actions
         </Heading>
         <VStack spacing={3}>
+          <Button
+            colorScheme="brand"
+            w="full"
+            leftIcon={<BookOpen size={16} aria-hidden="true" />}
+            onClick={() => router.push("/book")}
+          >
+            Book a Lesson
+          </Button>
           <Button
             variant="outline"
             w="full"

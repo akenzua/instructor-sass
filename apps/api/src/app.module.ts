@@ -10,6 +10,7 @@ import { AvailabilityModule } from "./modules/availability/availability.module";
 import { PaymentsModule } from "./modules/payments/payments.module";
 import { PackagesModule } from "./modules/packages/packages.module";
 import { PublicModule } from "./modules/public/public.module";
+import { SearchModule } from "./modules/search/search.module";
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { PublicModule } from "./modules/public/public.module";
     PaymentsModule,
     PackagesModule,
     PublicModule,
+    SearchModule,
   ],
 })
 export class AppModule {}

@@ -12,11 +12,22 @@ export const PaymentStatuses = [
   "cancelled",
 ] as const;
 
-export const PaymentMethods = ["card", "cash", "bank_transfer"] as const;
+export const PaymentMethods = ["card", "cash", "bank_transfer", "balance"] as const;
+
+export const PaymentTypes = [
+  "top-up",
+  "lesson-booking",
+  "package-booking",
+  "cancellation-fee",
+  "refund",
+] as const;
 
 @Schema({ timestamps: true })
 export class Payment {
   _id: Types.ObjectId;
+
+  @Prop({ enum: PaymentTypes, default: "top-up" })
+  type: string;
 
   @Prop({ type: Types.ObjectId, ref: "Instructor", required: true, index: true })
   instructorId: Types.ObjectId;

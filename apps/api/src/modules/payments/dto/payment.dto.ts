@@ -12,6 +12,10 @@ export class CreatePaymentIntentDto {
   @IsOptional()
   learnerId?: string;
 
+  @IsMongoId()
+  @IsOptional()
+  instructorId?: string;
+
   @IsArray()
   @IsMongoId({ each: true })
   @IsOptional()
