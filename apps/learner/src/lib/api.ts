@@ -65,6 +65,24 @@ export const authApi = {
     const response = await api.put('/auth/learner/me', data);
     return response.data as Learner;
   },
+
+  // Complete profile with licence verification
+  completeProfile: async (data: {
+    firstName: string;
+    lastName: string;
+    dateOfBirth: string;
+    provisionalLicenceNumber: string;
+    phone?: string;
+  }) => {
+    const response = await api.post('/auth/learner/complete-profile', data);
+    return response.data as {
+      success: boolean;
+      error?: string;
+      field?: string;
+      learner?: Learner;
+      licenceStatus?: string;
+    };
+  },
 };
 
 // Learner lessons API

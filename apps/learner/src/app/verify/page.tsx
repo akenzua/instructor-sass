@@ -17,10 +17,11 @@ import {
   Input,
   FormControl,
   FormLabel,
+  FormErrorMessage,
   HStack,
   Icon,
 } from "@chakra-ui/react";
-import { CheckCircle, XCircle, User, Calendar, Car } from "lucide-react";
+import { CheckCircle, XCircle, Calendar, Car, ShieldCheck } from "lucide-react";
 import { useLearnerAuth } from "@/lib/auth";
 import { authApi } from "@/lib/api";
 
@@ -34,13 +35,17 @@ export default function VerifyPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const { verifyMagicLink, learner } = useLearnerAuth();
+  const { verifyMagicLink, refreshLearner, learner } = useLearnerAuth();
   const [status, setStatus] = useState<"loading" | "success" | "bookingConfirmed" | "needsProfile" | "savingProfile" | "error">("loading");
   const [error, setError] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [licenceNumber, setLicenceNumber] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [confirmedBooking, setConfirmedBooking] = useState<ConfirmedBooking | null>(null);
   const [hasVerified, setHasVerified] = useState(false);
+  const [profileCompleted, setProfileCompleted] = useState(false);
 
   useEffect(() => {
     const token = searchParams.get("token");
@@ -62,7 +67,6 @@ export default function VerifyPage() {
         const result = await verifyMagicLink(token);
         
         // Invalidate all cached queries to ensure fresh data after login
-        // This is critical because booking confirmation updates lesson status
         await queryClient.invalidateQueries();
         
         // Check if this was a booking confirmation
@@ -84,7 +88,7 @@ export default function VerifyPage() {
   // Check if learner needs to complete profile after successful verification
   useEffect(() => {
     if ((status === "success" || status === "bookingConfirmed") && learner) {
-      if (!learner.firstName || !learner.lastName) {
+      if (!profileCompleted && (!learner.firstName || !learner.lastName)) {
         // Learner needs to complete their profile
         setStatus("needsProfile");
       } else if (status === "success") {
@@ -95,26 +99,83 @@ export default function VerifyPage() {
       }
       // If bookingConfirmed, stay on the confirmation screen
     }
-  }, [status, learner]);
+  }, [status, learner, profileCompleted]);
 
-  const handleSaveProfile = async () => {
-    if (!firstName.trim() || !lastName.trim()) {
-      return;
+  const validateClientSide = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!firstName.trim()) errors.firstName = "First name is required";
+    if (!lastName.trim()) errors.lastName = "Last name is required";
+
+    if (!dateOfBirth) {
+      errors.dateOfBirth = "Date of birth is required";
+    } else {
+      const dob = new Date(dateOfBirth);
+      if (isNaN(dob.getTime())) {
+        errors.dateOfBirth = "Invalid date";
+      } else {
+        const today = new Date();
+        let age = today.getFullYear() - dob.getFullYear();
+        const m = today.getMonth() - dob.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+        if (age < 17) errors.dateOfBirth = "You must be at least 17 years old";
+        if (age > 100) errors.dateOfBirth = "Please enter a valid date of birth";
+      }
     }
 
+    const cleaned = licenceNumber.toUpperCase().replace(/\s/g, "");
+    if (!cleaned) {
+      errors.provisionalLicenceNumber = "Provisional licence number is required";
+    } else if (cleaned.length !== 16) {
+      errors.provisionalLicenceNumber = "UK licence number must be 16 characters";
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleCompleteProfile = async () => {
+    if (!validateClientSide()) return;
+
     setStatus("savingProfile");
+    setError("");
+    setFieldErrors({});
+
     try {
-      await authApi.updateProfile({
+      const result = await authApi.completeProfile({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
+        dateOfBirth,
+        provisionalLicenceNumber: licenceNumber.toUpperCase().replace(/\s/g, ""),
       });
+
+      if (!result.success) {
+        // Server returned a validation error
+        setStatus("needsProfile");
+        if (result.field) {
+          setFieldErrors({ [result.field]: result.error || "Validation failed" });
+        } else {
+          setError(result.error || "Verification failed. Please try again.");
+        }
+        return;
+      }
+
+      // Success — mark profile as completed before setting status
+      // This prevents the useEffect from flipping back to needsProfile
+      setProfileCompleted(true);
+      await refreshLearner();
       setStatus("success");
       setTimeout(() => {
         window.location.href = "/";
       }, 1500);
-    } catch (err) {
+    } catch (err: any) {
       setStatus("needsProfile");
-      setError("Failed to save profile. Please try again.");
+      const message = err?.response?.data?.message;
+      if (Array.isArray(message)) {
+        setError(message[0]);
+      } else {
+        setError(message || "Failed to save profile. Please try again.");
+      }
     }
   };
 
@@ -208,11 +269,14 @@ export default function VerifyPage() {
                 color="primary.500"
                 _dark={{ bg: "primary.900", color: "primary.200" }}
               >
-                <User size={48} />
+                <ShieldCheck size={48} />
               </Box>
               <VStack spacing={2} textAlign="center">
                 <Heading size="md">Complete Your Profile</Heading>
-                <Text color="text.muted">Please enter your name to continue</Text>
+                <Text color="text.muted" fontSize="sm">
+                  We need to verify your identity before you can book lessons.
+                  You must be at least 17 and hold a valid UK provisional licence.
+                </Text>
               </VStack>
               
               {error && (
@@ -223,29 +287,71 @@ export default function VerifyPage() {
               )}
 
               <VStack spacing={4} w="full">
-                <FormControl isRequired>
-                  <FormLabel>First Name</FormLabel>
+                <HStack spacing={4} w="full">
+                  <FormControl isRequired isInvalid={!!fieldErrors.firstName}>
+                    <FormLabel fontSize="sm">First Name</FormLabel>
+                    <Input
+                      placeholder="First name"
+                      value={firstName}
+                      onChange={(e) => {
+                        setFirstName(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, firstName: "" }));
+                      }}
+                    />
+                    <FormErrorMessage>{fieldErrors.firstName}</FormErrorMessage>
+                  </FormControl>
+                  <FormControl isRequired isInvalid={!!fieldErrors.lastName}>
+                    <FormLabel fontSize="sm">Last Name</FormLabel>
+                    <Input
+                      placeholder="Last name"
+                      value={lastName}
+                      onChange={(e) => {
+                        setLastName(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, lastName: "" }));
+                      }}
+                    />
+                    <FormErrorMessage>{fieldErrors.lastName}</FormErrorMessage>
+                  </FormControl>
+                </HStack>
+
+                <FormControl isRequired isInvalid={!!fieldErrors.dateOfBirth}>
+                  <FormLabel fontSize="sm">Date of Birth</FormLabel>
                   <Input
-                    placeholder="Enter your first name"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
+                    type="date"
+                    value={dateOfBirth}
+                    max={new Date(new Date().setFullYear(new Date().getFullYear() - 17)).toISOString().split("T")[0]}
+                    onChange={(e) => {
+                      setDateOfBirth(e.target.value);
+                      setFieldErrors((prev) => ({ ...prev, dateOfBirth: "" }));
+                    }}
                   />
+                  <FormErrorMessage>{fieldErrors.dateOfBirth}</FormErrorMessage>
                 </FormControl>
-                <FormControl isRequired>
-                  <FormLabel>Last Name</FormLabel>
+
+                <FormControl isRequired isInvalid={!!fieldErrors.provisionalLicenceNumber}>
+                  <FormLabel fontSize="sm">UK Provisional Licence Number</FormLabel>
                   <Input
-                    placeholder="Enter your last name"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="e.g. JONES910250J93CW"
+                    value={licenceNumber}
+                    maxLength={16}
+                    onChange={(e) => {
+                      setLicenceNumber(e.target.value.toUpperCase());
+                      setFieldErrors((prev) => ({ ...prev, provisionalLicenceNumber: "" }));
+                    }}
                   />
+                  <FormErrorMessage>{fieldErrors.provisionalLicenceNumber}</FormErrorMessage>
+                  <Text fontSize="xs" color="text.muted" mt={1}>
+                    16-character number found on your provisional driving licence
+                  </Text>
                 </FormControl>
+
                 <Button
                   colorScheme="primary"
                   w="full"
-                  onClick={handleSaveProfile}
-                  isDisabled={!firstName.trim() || !lastName.trim()}
+                  onClick={handleCompleteProfile}
+                  isDisabled={!firstName.trim() || !lastName.trim() || !dateOfBirth || !licenceNumber.trim()}
                 >
-                  Continue
+                  Verify & Continue
                 </Button>
               </VStack>
             </VStack>
@@ -255,8 +361,10 @@ export default function VerifyPage() {
             <VStack spacing={6} textAlign="center">
               <Spinner size="xl" color="primary.500" thickness="4px" />
               <VStack spacing={2}>
-                <Heading size="md">Saving Profile...</Heading>
-                <Text color="text.muted">Please wait</Text>
+                <Heading size="md">Verifying Your Details...</Heading>
+                <Text color="text.muted">
+                  Checking your age and provisional licence
+                </Text>
               </VStack>
             </VStack>
           )}

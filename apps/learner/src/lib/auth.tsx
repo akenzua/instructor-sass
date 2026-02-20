@@ -15,6 +15,7 @@ interface AuthContextValue {
       instructorName?: string;
     };
   }>;
+  refreshLearner: () => Promise<void>;
   logout: () => void;
 }
 
@@ -62,6 +63,15 @@ export function LearnerAuthProvider({ children }: AuthProviderProps) {
     return { confirmedBooking };
   };
 
+  const refreshLearner = async () => {
+    try {
+      const learnerData = await authApi.me();
+      setLearner(learnerData);
+    } catch (error) {
+      console.error('Failed to refresh learner:', error);
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('learner_token');
     setLearner(null);
@@ -74,6 +84,7 @@ export function LearnerAuthProvider({ children }: AuthProviderProps) {
         isLoading,
         isAuthenticated: !!learner,
         verifyMagicLink,
+        refreshLearner,
         logout,
       }}
     >

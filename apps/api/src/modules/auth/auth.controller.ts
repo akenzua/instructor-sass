@@ -1,6 +1,7 @@
 import { Controller, Post, Get, Put, Body, UseGuards, Request } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { SignupDto, LoginDto, MagicLinkDto, VerifyMagicLinkDto, UpdateLearnerProfileDto } from "./dto/auth.dto";
+import { CompleteProfileDto } from "./dto/complete-profile.dto";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 
 @Controller("auth")
@@ -47,5 +48,14 @@ export class AuthController {
     @Body() dto: UpdateLearnerProfileDto
   ) {
     return this.authService.updateLearnerProfile(req.user.id, dto);
+  }
+
+  @Post("learner/complete-profile")
+  @UseGuards(JwtAuthGuard)
+  async completeProfile(
+    @Request() req: { user: { id: string } },
+    @Body() dto: CompleteProfileDto
+  ) {
+    return this.authService.completeProfile(req.user.id, dto);
   }
 }

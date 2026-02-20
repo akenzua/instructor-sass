@@ -8,7 +8,9 @@ import { Learner, LearnerDocument } from "../../schemas/learner.schema";
 import { Lesson, LessonDocument } from "../../schemas/lesson.schema";
 import { MagicLinkToken, MagicLinkTokenDocument } from "../../schemas/magic-link-token.schema";
 import { SignupDto, LoginDto, MagicLinkDto, VerifyMagicLinkDto } from "./dto/auth.dto";
+import { CompleteProfileDto } from "./dto/complete-profile.dto";
 import { EmailService } from "../email/email.service";
+import { LicenceVerificationService } from "./licence-verification.service";
 
 @Injectable()
 export class AuthService {
@@ -22,7 +24,8 @@ export class AuthService {
     @InjectModel(MagicLinkToken.name)
     private magicLinkTokenModel: Model<MagicLinkTokenDocument>,
     private jwtService: JwtService,
-    private emailService: EmailService
+    private emailService: EmailService,
+    private licenceVerificationService: LicenceVerificationService,
   ) {}
 
   async signup(dto: SignupDto) {
@@ -233,6 +236,65 @@ export class AuthService {
       throw new NotFoundException("Learner not found");
     }
     return learner.toJSON();
+  }
+
+  async completeProfile(learnerId: string, dto: CompleteProfileDto) {
+    const learner = await this.learnerModel.findById(learnerId);
+    if (!learner) {
+      throw new NotFoundException('Learner not found');
+    }
+
+    // 1. Validate age (must be 17+)
+    const ageResult = this.licenceVerificationService.validateAge(dto.dateOfBirth);
+    if (!ageResult.valid) {
+      return {
+        success: false,
+        error: ageResult.error,
+        field: 'dateOfBirth',
+      };
+    }
+
+    // 2. Verify provisional licence
+    const licenceResult = await this.licenceVerificationService.verifyLicence(
+      dto.provisionalLicenceNumber,
+      dto.lastName,
+      dto.dateOfBirth,
+    );
+
+    if (!licenceResult.valid) {
+      return {
+        success: false,
+        error: licenceResult.error,
+        field: 'provisionalLicenceNumber',
+      };
+    }
+
+    // 3. Update learner profile
+    const updateData: Record<string, any> = {
+      firstName: dto.firstName.trim(),
+      lastName: dto.lastName.trim(),
+      dateOfBirth: dto.dateOfBirth,
+      licenseNumber: dto.provisionalLicenceNumber.toUpperCase().replace(/\s/g, ''),
+      licenceVerified: licenceResult.status === 'verified',
+      licenceVerifiedAt: new Date(),
+      licenceStatus: licenceResult.status === 'verified' ? 'verified' : 'format_valid' as any,
+    };
+
+    if (dto.phone) {
+      updateData.phone = dto.phone.trim();
+    }
+
+    const updated = await this.learnerModel.findByIdAndUpdate(
+      learnerId,
+      { $set: updateData },
+      { new: true },
+    );
+
+    return {
+      success: true,
+      learner: updated.toJSON(),
+      licenceStatus: licenceResult.status,
+    };
   }
 
   // Public methods to manage magic link tokens (used by LearnersService for invite emails)

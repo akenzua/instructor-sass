@@ -48,6 +48,18 @@ export class Learner {
   @Prop({ trim: true })
   licenseNumber?: string;
 
+  @Prop({ default: false })
+  licenceVerified: boolean;
+
+  @Prop()
+  licenceVerifiedAt?: Date;
+
+  @Prop({ enum: ['pending', 'verified', 'failed', 'skipped', 'format_valid'], default: 'pending' })
+  licenceStatus: string;
+
+  @Prop()
+  licenceVerificationError?: string;
+
   @Prop()
   testDate?: Date;
 
@@ -78,7 +90,7 @@ LearnerSchema.index({ instructorId: 1, status: 1 });
 
 // Virtual for full name
 LearnerSchema.virtual("fullName").get(function () {
-  return `${this.firstName} ${this.lastName}`;
+  return this.firstName + " " + this.lastName;
 });
 
 LearnerSchema.set("toJSON", {

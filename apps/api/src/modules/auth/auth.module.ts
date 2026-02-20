@@ -6,6 +6,7 @@ import { MongooseModule } from "@nestjs/mongoose";
 import { AuthService } from "./auth.service";
 import { AuthController } from "./auth.controller";
 import { JwtStrategy } from "./strategies/jwt.strategy";
+import { LicenceVerificationService } from "./licence-verification.service";
 import { Instructor, InstructorSchema } from "../../schemas/instructor.schema";
 import { Learner, LearnerSchema } from "../../schemas/learner.schema";
 import { Lesson, LessonSchema } from "../../schemas/lesson.schema";
@@ -31,7 +32,7 @@ import { MagicLinkToken, MagicLinkTokenSchema } from "../../schemas/magic-link-t
       inject: [ConfigService],
     }),
   ],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, LicenceVerificationService],
   controllers: [AuthController],
   exports: [AuthService, JwtModule],
 })
