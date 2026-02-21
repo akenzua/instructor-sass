@@ -137,6 +137,21 @@ export const paymentsApi = {
     return response.data as Payment[];
   },
 
+  // Get receipt download URL (opens in new tab with auth)
+  getReceiptUrl: (paymentId: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('learner_token') : null;
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+    return `${baseUrl}/learners/me/payments/${paymentId}/receipt?token=${token || ''}`;
+  },
+
+  // Download receipt HTML as blob
+  downloadReceipt: async (paymentId: string) => {
+    const response = await api.get(`/learners/me/payments/${paymentId}/receipt`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
   // Create payment intent for balance
   createPaymentIntent: async (amount: number, instructorId?: string) => {
     const response = await api.post('/payments/create-intent', { amount, instructorId });

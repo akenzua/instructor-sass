@@ -5,6 +5,7 @@ import { Model, Types } from "mongoose";
 import { Learner, LearnerDocument } from "../../schemas/learner.schema";
 import { Lesson, LessonDocument } from "../../schemas/lesson.schema";
 import { Payment, PaymentDocument } from "../../schemas/payment.schema";
+import { Instructor, InstructorDocument } from "../../schemas/instructor.schema";
 import { CreateLearnerDto, UpdateLearnerDto, LearnerQueryDto } from "./dto/learner.dto";
 import { EmailService } from "../email/email.service";
 import { InstructorsService } from "../instructors/instructors.service";
@@ -19,6 +20,8 @@ export class LearnersService {
     private lessonModel: Model<LessonDocument>,
     @InjectModel(Payment.name)
     private paymentModel: Model<PaymentDocument>,
+    @InjectModel(Instructor.name)
+    private instructorModel: Model<InstructorDocument>,
     private emailService: EmailService,
     private instructorsService: InstructorsService,
     @Inject(forwardRef(() => AuthService))
@@ -211,5 +214,153 @@ export class LearnersService {
       .populate('instructorId', 'firstName lastName')
       .sort({ createdAt: -1 })
       .exec();
+  }
+
+  /**
+   * Generate a printable HTML receipt for a payment.
+   * Only returns receipts for succeeded payments belonging to the learner.
+   */
+  async generateReceiptHtml(learnerId: string, paymentId: string): Promise<string | null> {
+    const payment = await this.paymentModel.findOne({
+      _id: paymentId,
+      learnerId: new Types.ObjectId(learnerId),
+      status: 'succeeded',
+    });
+
+    if (!payment) return null;
+
+    const learner = await this.learnerModel.findById(learnerId);
+    const instructor = await this.instructorModel.findById(payment.instructorId);
+
+    const learnerName = learner ? `${learner.firstName || ''} ${learner.lastName || ''}`.trim() || learner.email : 'Unknown';
+    const instructorName = instructor ? `${instructor.firstName} ${instructor.lastName}` : 'Unknown';
+    const currencySymbol = (payment.currency || 'GBP') === 'GBP' ? '£' : payment.currency;
+    const formattedAmount = `${currencySymbol}${payment.amount.toFixed(2)}`;
+    const paidAt = payment.paidAt || payment.createdAt;
+    const formattedDate = paidAt.toLocaleDateString('en-GB', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    });
+    const formattedTime = paidAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const receiptNumber = `RCP-${payment._id.toString().slice(-8).toUpperCase()}`;
+    const appName = this.configService.get<string>('APP_NAME', 'InDrive');
+
+    const typeLabels: Record<string, string> = {
+      'top-up': 'Account Top-Up',
+      'lesson-booking': 'Lesson Booking',
+      'package-booking': 'Package Purchase',
+      'cancellation-fee': 'Cancellation Fee',
+      'refund': 'Refund',
+    };
+    const typeLabel = typeLabels[payment.type] || payment.type;
+
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Receipt ${receiptNumber} - ${appName}</title>
+  <style>
+    @media print {
+      body { margin: 0; padding: 20px; }
+      .no-print { display: none !important; }
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; padding: 40px 20px;
+      background: #f5f5f5;
+    }
+    .receipt-card {
+      background: white; border-radius: 12px; overflow: hidden;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    .receipt-header {
+      background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+      padding: 30px; color: white;
+    }
+    .receipt-header h1 { margin: 0; font-size: 24px; }
+    .receipt-header p { margin: 4px 0 0; opacity: 0.9; font-size: 14px; }
+    .receipt-body { padding: 30px; }
+    .receipt-meta { display: flex; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .receipt-meta-item label { display: block; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+    .receipt-meta-item span { font-weight: 700; font-size: 15px; font-family: monospace; }
+    .receipt-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    .receipt-table td { padding: 12px 0; border-bottom: 1px solid #e2e8f0; }
+    .receipt-table td:first-child { color: #666; }
+    .receipt-table td:last-child { text-align: right; font-weight: 600; }
+    .receipt-table tr:last-child td { border-bottom: none; padding-top: 16px; }
+    .total-row td { font-size: 20px !important; font-weight: 700 !important; color: #10B981 !important; border-top: 2px solid #e2e8f0 !important; }
+    .status-badge {
+      display: inline-block; padding: 4px 12px; border-radius: 9999px;
+      background: #ecfdf5; color: #065f46; font-size: 13px; font-weight: 600;
+    }
+    .receipt-footer { padding: 20px 30px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center; }
+    .receipt-footer p { margin: 0; font-size: 12px; color: #999; }
+    .print-btn {
+      display: block; margin: 20px auto; padding: 12px 32px; font-size: 16px;
+      background: #10B981; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;
+    }
+    .print-btn:hover { background: #059669; }
+  </style>
+</head>
+<body>
+  <div class="receipt-card">
+    <div class="receipt-header">
+      <h1>Payment Receipt</h1>
+      <p>${appName}</p>
+    </div>
+    <div class="receipt-body">
+      <div class="receipt-meta">
+        <div class="receipt-meta-item">
+          <label>Receipt Number</label>
+          <span>${receiptNumber}</span>
+        </div>
+        <div class="receipt-meta-item">
+          <label>Date</label>
+          <span>${formattedDate}</span>
+        </div>
+        <div class="receipt-meta-item">
+          <label>Time</label>
+          <span>${formattedTime}</span>
+        </div>
+        <div class="receipt-meta-item">
+          <label>Status</label>
+          <span class="status-badge">✅ Paid</span>
+        </div>
+      </div>
+
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+
+      <p style="margin: 0 0 4px;"><strong>Billed to:</strong> ${learnerName}</p>
+      <p style="margin: 0; color: #666; font-size: 14px;">${learner?.email || ''}</p>
+
+      <table class="receipt-table">
+        <tr>
+          <td>Type</td>
+          <td>${typeLabel}</td>
+        </tr>
+        <tr>
+          <td>Instructor</td>
+          <td>${instructorName}</td>
+        </tr>
+        <tr>
+          <td>Payment Method</td>
+          <td style="text-transform: capitalize;">${payment.method || 'card'}</td>
+        </tr>
+        ${payment.description ? `<tr><td>Description</td><td>${payment.description}</td></tr>` : ''}
+        <tr class="total-row">
+          <td>Amount Paid</td>
+          <td>${formattedAmount}</td>
+        </tr>
+      </table>
+    </div>
+    <div class="receipt-footer">
+      <p>This is an automated receipt generated by ${appName}.</p>
+      <p>&copy; ${new Date().getFullYear()} ${appName}. All rights reserved.</p>
+    </div>
+  </div>
+  <button class="print-btn no-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+</body>
+</html>`;
   }
 }

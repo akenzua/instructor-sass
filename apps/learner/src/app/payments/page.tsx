@@ -8,7 +8,6 @@ import {
   Button,
   Card,
   CardBody,
-  Heading,
   HStack,
   Skeleton,
   Text,
@@ -21,8 +20,10 @@ import {
   Th,
   Td,
   TableContainer,
+  IconButton,
+  Tooltip,
 } from "@chakra-ui/react";
-import { ArrowLeft, PoundSterling } from "lucide-react";
+import { ArrowLeft, PoundSterling, Download } from "lucide-react";
 import { format } from "date-fns";
 import { PageHeader } from "@acme/ui";
 import { useLearnerAuth } from "@/lib/auth";
@@ -92,6 +93,16 @@ export default function PaymentsPage() {
     }
   };
 
+  const handleDownloadReceipt = async (paymentId: string) => {
+    try {
+      const blob = await paymentsApi.downloadReceipt(paymentId);
+      const url = URL.createObjectURL(new Blob([blob], { type: 'text/html' }));
+      window.open(url, '_blank');
+    } catch (err) {
+      console.error('Failed to download receipt:', err);
+    }
+  };
+
   if (authLoading || !isAuthenticated) {
     return (
       <Box minH="100vh" bg="bg.subtle" p={8}>
@@ -152,6 +163,7 @@ export default function PaymentsPage() {
                         <Th>Instructor</Th>
                         <Th isNumeric>Amount</Th>
                         <Th>Status</Th>
+                        <Th>Receipt</Th>
                       </Tr>
                     </Thead>
                     <Tbody>
@@ -180,6 +192,22 @@ export default function PaymentsPage() {
                             <Badge colorScheme={getStatusColor(payment.status)}>
                               {payment.status}
                             </Badge>
+                          </Td>
+                          <Td>
+                            {payment.status === 'succeeded' ? (
+                              <Tooltip label="Download Receipt">
+                                <IconButton
+                                  aria-label="Download receipt"
+                                  icon={<Download size={16} />}
+                                  size="sm"
+                                  variant="ghost"
+                                  colorScheme="green"
+                                  onClick={() => handleDownloadReceipt(payment._id || payment.id)}
+                                />
+                              </Tooltip>
+                            ) : (
+                              <Text color="text.muted" fontSize="sm">—</Text>
+                            )}
                           </Td>
                         </Tr>
                       ))}

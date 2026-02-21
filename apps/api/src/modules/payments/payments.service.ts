@@ -4,10 +4,13 @@ import { ConfigService } from '@nestjs/config';
 import { Model } from 'mongoose';
 import Stripe from 'stripe';
 import { Payment, PaymentDocument } from '../../schemas/payment.schema';
+import { Instructor, InstructorDocument } from '../../schemas/instructor.schema';
+import { Learner, LearnerDocument } from '../../schemas/learner.schema';
 import { CreatePaymentIntentDto } from './dto/payment.dto';
 import { LearnersService } from '../learners/learners.service';
 import { LearnerLinkService } from '../learners/learner-link.service';
 import { LessonsService } from '../lessons/lessons.service';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class PaymentsService {
@@ -16,12 +19,17 @@ export class PaymentsService {
   constructor(
     @InjectModel(Payment.name)
     private paymentModel: Model<PaymentDocument>,
+    @InjectModel(Instructor.name)
+    private instructorModel: Model<InstructorDocument>,
+    @InjectModel(Learner.name)
+    private learnerModel: Model<LearnerDocument>,
     private configService: ConfigService,
     @Inject(forwardRef(() => LearnersService))
     private learnersService: LearnersService,
     @Inject(forwardRef(() => LessonsService))
     private lessonsService: LessonsService,
     private linkService: LearnerLinkService,
+    private emailService: EmailService,
   ) {
     const stripeKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (stripeKey) {
@@ -230,6 +238,11 @@ export class PaymentsService {
     }
 
     console.log('[PaymentSuccess] Fully processed payment:', payment._id);
+
+    // Send receipt email (non-blocking)
+    this.sendReceiptEmail(payment).catch(err =>
+      console.error('[PaymentSuccess] Failed to send receipt email:', err)
+    );
   }
 
   private async handlePaymentFailure(paymentIntent: Stripe.PaymentIntent): Promise<void> {
@@ -314,5 +327,33 @@ export class PaymentsService {
 
   async findByPaymentIntentId(paymentIntentId: string): Promise<PaymentDocument | null> {
     return this.paymentModel.findOne({ stripePaymentIntentId: paymentIntentId });
+  }
+
+  /**
+   * Send a receipt email after a successful payment.
+   */
+  private async sendReceiptEmail(payment: PaymentDocument): Promise<void> {
+    const learner = await this.learnerModel.findById(payment.learnerId);
+    if (!learner?.email) {
+      console.warn('[Receipt] No learner email found for payment:', payment._id);
+      return;
+    }
+
+    const instructor = await this.instructorModel.findById(payment.instructorId);
+    const instructorName = instructor
+      ? `${instructor.firstName} ${instructor.lastName}`
+      : 'Unknown';
+
+    await this.emailService.sendPaymentReceiptEmail(learner.email, {
+      learnerName: learner.firstName || 'there',
+      instructorName,
+      amount: payment.amount,
+      currency: payment.currency || 'GBP',
+      paymentType: payment.type || 'top-up',
+      paymentMethod: payment.method || 'card',
+      paymentId: payment._id.toString(),
+      paidAt: payment.paidAt || new Date(),
+      description: payment.description,
+    });
   }
 }

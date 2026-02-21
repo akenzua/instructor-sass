@@ -10,7 +10,10 @@ import {
   UseGuards,
   Request,
   Header,
+  Res,
+  NotFoundException,
 } from "@nestjs/common";
+import { Response } from 'express';
 import { LearnersService } from "./learners.service";
 import { CreateLearnerDto, UpdateLearnerDto, LearnerQueryDto } from "./dto/learner.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -41,6 +44,22 @@ export class LearnersController {
     @Request() req: { user: { id: string; type?: string } }
   ) {
     return this.learnersService.getLearnerPayments(req.user.id);
+  }
+
+  @Get("me/payments/:paymentId/receipt")
+  @UseGuards(JwtAuthGuard)
+  async downloadReceipt(
+    @Request() req: { user: { id: string; type?: string } },
+    @Param("paymentId") paymentId: string,
+    @Res() res: Response,
+  ) {
+    const html = await this.learnersService.generateReceiptHtml(req.user.id, paymentId);
+    if (!html) {
+      throw new NotFoundException('Payment not found');
+    }
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Disposition', `inline; filename="receipt-${paymentId}.html"`);
+    res.send(html);
   }
 
   // Instructor endpoints (authenticated as instructor)

@@ -1062,6 +1062,19 @@ export class PublicService {
       }
     );
 
+    // Send payment receipt email (non-blocking)
+    this.emailService.sendPaymentReceiptEmail(learner.email, {
+      learnerName: learner.firstName || 'there',
+      instructorName,
+      amount: payment.amount,
+      currency: payment.currency || 'GBP',
+      paymentType: payment.type || 'top-up',
+      paymentMethod: payment.method || 'card',
+      paymentId: payment._id.toString(),
+      paidAt: payment.paidAt || new Date(),
+      description: payment.description,
+    }).catch(err => console.error('[PublicBooking] Failed to send receipt email:', err));
+
     return {
       success: true,
       message: 'Booking confirmed! Check your email for details.',
