@@ -798,14 +798,11 @@ async function seed() {
   const availability = daysOfWeek.map((day) => ({
     instructorId: instructor._id,
     dayOfWeek: day,
-    slots:
-      day === 'saturday' || day === 'sunday'
-        ? []
-        : [
-            { start: '09:00', end: '12:00' },
-            { start: '13:00', end: '17:00' },
-          ],
-    isAvailable: day !== 'saturday' && day !== 'sunday',
+    slots: [
+      { start: '09:00', end: '12:00' },
+      { start: '13:00', end: '17:00' },
+    ],
+    isAvailable: true,
   }));
 
   await WeeklyAvailability.insertMany(availability);
