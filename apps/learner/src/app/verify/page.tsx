@@ -21,9 +21,9 @@ import {
   HStack,
   Icon,
 } from "@chakra-ui/react";
-import { CheckCircle, XCircle, Calendar, Car, ShieldCheck } from "lucide-react";
+import { CheckCircle, XCircle, Calendar, Car, ShieldCheck, CalendarPlus } from "lucide-react";
 import { useLearnerAuth } from "@/lib/auth";
-import { authApi } from "@/lib/api";
+import { authApi, calendarApi } from "@/lib/api";
 
 interface ConfirmedBooking {
   id: string;
@@ -251,6 +251,16 @@ export default function VerifyPage() {
                   </HStack>
                 </VStack>
               </Box>
+
+              <Button
+                variant="outline"
+                colorScheme="primary"
+                w="full"
+                leftIcon={<CalendarPlus size={18} />}
+                onClick={() => calendarApi.downloadLessonIcs(confirmedBooking.id)}
+              >
+                Add to Calendar
+              </Button>
 
               <Button
                 colorScheme="primary"

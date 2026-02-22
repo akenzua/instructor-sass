@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Button, Card, CardBody, Heading, VStack } from "@chakra-ui/react";
-import { Calendar, DollarSign, BookOpen } from "lucide-react";
+import { Calendar, DollarSign, BookOpen, CalendarPlus } from "lucide-react";
 
 export function QuickActionsCard() {
   const router = useRouter();
@@ -37,6 +37,14 @@ export function QuickActionsCard() {
             onClick={() => router.push("/payments")}
           >
             Payment History
+          </Button>
+          <Button
+            variant="outline"
+            w="full"
+            leftIcon={<CalendarPlus size={16} aria-hidden="true" />}
+            onClick={() => router.push("/calendar")}
+          >
+            Sync Calendar
           </Button>
         </VStack>
       </CardBody>

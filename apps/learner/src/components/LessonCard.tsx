@@ -11,13 +11,14 @@ import {
   VStack,
   useDisclosure,
 } from "@chakra-ui/react";
-import { Calendar, Clock, MapPin, X } from "lucide-react";
+import { Calendar, Clock, MapPin, X, CalendarPlus } from "lucide-react";
 import { format, formatDistanceToNow, isFuture } from "date-fns";
 import { StatusBadge } from "@acme/ui";
 import type { PopulatedLesson } from "@/types";
 import { isPopulatedInstructor } from "@/types";
 import { isLessonUrgent, isLessonToday, formatLessonType } from "@/lib/utils";
 import { CancelLessonModal } from "./CancelLessonModal";
+import { calendarApi } from "@/lib/api";
 
 interface LessonCardProps {
   lesson: PopulatedLesson;
@@ -109,15 +110,25 @@ export function LessonCard({ lesson }: LessonCardProps) {
       {canCancel && (
         <>
           <Divider my={3} />
-          <Button
-            size="sm"
-            variant="ghost"
-            colorScheme="red"
-            leftIcon={<X size={14} />}
-            onClick={onOpen}
-          >
-            Cancel Lesson
-          </Button>
+          <HStack spacing={2}>
+            <Button
+              size="sm"
+              variant="ghost"
+              leftIcon={<CalendarPlus size={14} />}
+              onClick={() => calendarApi.downloadLessonIcs(lesson._id)}
+            >
+              Add to Calendar
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              colorScheme="red"
+              leftIcon={<X size={14} />}
+              onClick={onOpen}
+            >
+              Cancel Lesson
+            </Button>
+          </HStack>
           <CancelLessonModal
             isOpen={isOpen}
             onClose={onClose}

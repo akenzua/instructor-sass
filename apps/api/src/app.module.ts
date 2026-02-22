@@ -13,6 +13,7 @@ import { PackagesModule } from "./modules/packages/packages.module";
 import { PublicModule } from "./modules/public/public.module";
 import { SearchModule } from "./modules/search/search.module";
 import { RemindersModule } from "./modules/reminders/reminders.module";
+import { CalendarModule } from "./modules/calendar/calendar.module";
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { RemindersModule } from "./modules/reminders/reminders.module";
     PublicModule,
     SearchModule,
     RemindersModule,
+    CalendarModule,
   ],
 })
 export class AppModule {}

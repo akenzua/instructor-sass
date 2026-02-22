@@ -63,6 +63,9 @@ export class Learner {
   @Prop()
   testDate?: Date;
 
+  @Prop({ unique: true, sparse: true })
+  calendarFeedToken?: string;
+
   @Prop()
   notes?: string;
 

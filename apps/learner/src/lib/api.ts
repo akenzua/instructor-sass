@@ -344,4 +344,69 @@ export const searchApi = {
   },
 };
 
+// Calendar API
+export const calendarApi = {
+  // Get the subscribable calendar feed URL
+  getFeedUrl: async () => {
+    const response = await api.get('/calendar/feed-url');
+    return response.data as {
+      feedToken: string;
+      httpUrl: string;
+      webcalUrl: string;
+      googleCalendarUrl: string;
+    };
+  },
+
+  // Regenerate calendar feed token (invalidates old URLs)
+  regenerateToken: async () => {
+    const response = await api.post('/calendar/regenerate-token');
+    return response.data as {
+      feedToken: string;
+      httpUrl: string;
+      webcalUrl: string;
+      googleCalendarUrl: string;
+    };
+  },
+
+  // Get the download URL for a single lesson .ics file
+  getLessonIcsUrl: (lessonId: string) => {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+    return `${baseUrl}/calendar/lesson/${lessonId}.ics`;
+  },
+
+  // Get the download URL for the test date .ics file
+  getTestDateIcsUrl: () => {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+    return `${baseUrl}/calendar/test-date.ics`;
+  },
+
+  // Download a lesson .ics file (with auth)
+  downloadLessonIcs: async (lessonId: string) => {
+    const response = await api.get(`/calendar/lesson/${lessonId}.ics`, {
+      responseType: 'blob',
+    });
+    const blob = new Blob([response.data], { type: 'text/calendar' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lesson-${lessonId}.ics`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  },
+
+  // Download the test date .ics file (with auth)
+  downloadTestDateIcs: async () => {
+    const response = await api.get('/calendar/test-date.ics', {
+      responseType: 'blob',
+    });
+    const blob = new Blob([response.data], { type: 'text/calendar' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'driving-test-date.ics';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  },
+};
+
 export default api;

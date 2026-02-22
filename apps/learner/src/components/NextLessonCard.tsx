@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import {
   Badge,
   Box,
+  Button,
   Card,
   CardBody,
   Divider,
@@ -13,12 +14,13 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { Calendar, Clock, MapPin } from "lucide-react";
+import { Calendar, Clock, MapPin, CalendarPlus } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { StatusBadge } from "@acme/ui";
 import type { PopulatedLesson } from "@/types";
 import { isLessonUrgent, formatLessonType } from "@/lib/utils";
 import { EmptyLessons } from "./EmptyLessons";
+import { calendarApi } from "@/lib/api";
 
 interface NextLessonCardProps {
   lesson: PopulatedLesson | null;
@@ -115,6 +117,17 @@ export function NextLessonCard({
                 </HStack>
               )}
             </VStack>
+
+            <Divider my={4} />
+
+            <Button
+              size="sm"
+              variant="outline"
+              leftIcon={<CalendarPlus size={14} />}
+              onClick={() => calendarApi.downloadLessonIcs(lesson._id)}
+            >
+              Add to Calendar
+            </Button>
           </Box>
         ) : (
           <EmptyLessons />
