@@ -7,6 +7,18 @@ export const LessonStatuses = ["pending-confirmation", "scheduled", "completed",
 export const LessonPaymentStatuses = ["pending", "paid", "refunded", "waived"] as const;
 export const LessonTypes = ["standard", "test-prep", "mock-test", "motorway", "refresher"] as const;
 
+@Schema({ _id: false })
+export class RemindersSent {
+  @Prop({ default: false })
+  fortyEightHour: boolean;
+
+  @Prop({ default: false })
+  twentyFourHour: boolean;
+
+  @Prop({ default: false })
+  oneHour: boolean;
+}
+
 @Schema({ timestamps: true })
 export class Lesson {
   _id: Types.ObjectId;
@@ -77,6 +89,16 @@ export class Lesson {
   @Prop()
   completedAt?: Date;
 
+  @Prop({
+    type: {
+      fortyEightHour: { type: Boolean, default: false },
+      twentyFourHour: { type: Boolean, default: false },
+      oneHour: { type: Boolean, default: false },
+    },
+    default: () => ({ fortyEightHour: false, twentyFourHour: false, oneHour: false }),
+  })
+  remindersSent: RemindersSent;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -88,6 +110,11 @@ LessonSchema.index({ instructorId: 1, startTime: 1 });
 LessonSchema.index({ learnerId: 1, startTime: 1 });
 LessonSchema.index({ instructorId: 1, status: 1 });
 LessonSchema.index({ instructorId: 1, paymentStatus: 1 });
+
+// Reminder query indexes
+LessonSchema.index({ status: 1, startTime: 1, 'remindersSent.fortyEightHour': 1 });
+LessonSchema.index({ status: 1, startTime: 1, 'remindersSent.twentyFourHour': 1 });
+LessonSchema.index({ status: 1, startTime: 1, 'remindersSent.oneHour': 1 });
 
 LessonSchema.set("toJSON", {
   virtuals: true,

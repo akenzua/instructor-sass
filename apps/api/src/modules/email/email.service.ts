@@ -527,4 +527,26 @@ ${appName} Team
       return false;
     }
   }
+
+  /**
+   * Generic email sender used by reminders and other services.
+   */
+  async sendRawEmail(to: string, subject: string, html: string): Promise<boolean> {
+    const fromEmail = this.configService.get<string>("SMTP_FROM", this.configService.get<string>("SMTP_USER"));
+    const appName = this.configService.get<string>("APP_NAME", "InDrive");
+
+    try {
+      const info = await this.transporter.sendMail({
+        from: `"${appName}" <${fromEmail}>`,
+        to,
+        subject,
+        html,
+      });
+      console.log(`📧 Email sent to ${to}: ${info.messageId}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Failed to send email to ${to}:`, error);
+      return false;
+    }
+  }
 }

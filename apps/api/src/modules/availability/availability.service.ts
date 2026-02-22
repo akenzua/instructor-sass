@@ -35,11 +35,8 @@ export class AvailabilityService {
       const defaults = DaysOfWeek.map((day) => ({
         instructorId: objectId,
         dayOfWeek: day,
-        slots:
-          day === "saturday" || day === "sunday"
-            ? []
-            : [{ start: "09:00", end: "17:00" }],
-        isAvailable: day !== "saturday" && day !== "sunday",
+        slots: [{ start: "09:00", end: "17:00" }],
+        isAvailable: true,
       }));
 
       availability = await this.weeklyModel.insertMany(defaults) as any;
@@ -57,11 +54,8 @@ export class AvailabilityService {
     const defaults = DaysOfWeek.map((day) => ({
       instructorId: objectId,
       dayOfWeek: day,
-      slots:
-        day === "saturday" || day === "sunday"
-          ? []
-          : [{ start: "09:00", end: "17:00" }],
-      isAvailable: day !== "saturday" && day !== "sunday",
+      slots: [{ start: "09:00", end: "17:00" }],
+      isAvailable: true,
     }));
 
     return await this.weeklyModel.insertMany(defaults) as any;

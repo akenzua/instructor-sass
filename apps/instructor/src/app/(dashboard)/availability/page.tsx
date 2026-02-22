@@ -103,7 +103,7 @@ export default function AvailabilityPage() {
         const existing = weeklyData.find((d) => d.dayOfWeek === day);
         return {
           dayOfWeek: day,
-          isAvailable: existing?.isAvailable ?? false, // Default to false for missing days
+          isAvailable: existing?.isAvailable ?? true, // Default to available for missing days
           slots: existing?.slots ?? [{ start: "09:00", end: "17:00" }],
         };
       });
@@ -114,9 +114,17 @@ export default function AvailabilityPage() {
 
   const toggleDayAvailable = (dayOfWeek: string) => {
     setAvailability((prev) =>
-      prev.map((d) =>
-        d.dayOfWeek === dayOfWeek ? { ...d, isAvailable: !d.isAvailable } : d
-      )
+      prev.map((d) => {
+        if (d.dayOfWeek === dayOfWeek) {
+          const newIsAvailable = !d.isAvailable;
+          // If toggling to available and no slots exist, add a default slot
+          const newSlots = newIsAvailable && d.slots.length === 0
+            ? [{ start: "09:00", end: "17:00" }]
+            : d.slots;
+          return { ...d, isAvailable: newIsAvailable, slots: newSlots };
+        }
+        return d;
+      })
     );
     setHasChanges(true);
   };

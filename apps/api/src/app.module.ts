@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { MongooseModule } from "@nestjs/mongoose";
+import { ScheduleModule } from "@nestjs/schedule";
 import { EmailModule } from "./modules/email/email.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { InstructorsModule } from "./modules/instructors/instructors.module";
@@ -11,6 +12,7 @@ import { PaymentsModule } from "./modules/payments/payments.module";
 import { PackagesModule } from "./modules/packages/packages.module";
 import { PublicModule } from "./modules/public/public.module";
 import { SearchModule } from "./modules/search/search.module";
+import { RemindersModule } from "./modules/reminders/reminders.module";
 
 @Module({
   imports: [
@@ -25,6 +27,7 @@ import { SearchModule } from "./modules/search/search.module";
       }),
       inject: [ConfigService],
     }),
+    ScheduleModule.forRoot(),
     EmailModule,
     AuthModule,
     InstructorsModule,
@@ -35,6 +38,7 @@ import { SearchModule } from "./modules/search/search.module";
     PackagesModule,
     PublicModule,
     SearchModule,
+    RemindersModule,
   ],
 })
 export class AppModule {}
