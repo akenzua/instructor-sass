@@ -42,6 +42,7 @@ export default function VerifyPage() {
   const [lastName, setLastName] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [licenceNumber, setLicenceNumber] = useState("");
+  const [testDate, setTestDate] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [confirmedBooking, setConfirmedBooking] = useState<ConfirmedBooking | null>(null);
   const [hasVerified, setHasVerified] = useState(false);
@@ -147,6 +148,7 @@ export default function VerifyPage() {
         lastName: lastName.trim(),
         dateOfBirth,
         provisionalLicenceNumber: licenceNumber.toUpperCase().replace(/\s/g, ""),
+        ...(testDate ? { testDate } : {}),
       });
 
       if (!result.success) {
@@ -342,6 +344,21 @@ export default function VerifyPage() {
                   <FormErrorMessage>{fieldErrors.provisionalLicenceNumber}</FormErrorMessage>
                   <Text fontSize="xs" color="text.muted" mt={1}>
                     16-character number found on your provisional driving licence
+                  </Text>
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel fontSize="sm">Driving Test Date (Optional)</FormLabel>
+                  <Input
+                    type="date"
+                    value={testDate}
+                    min={new Date().toISOString().split("T")[0]}
+                    onChange={(e) => {
+                      setTestDate(e.target.value);
+                    }}
+                  />
+                  <Text fontSize="xs" color="text.muted" mt={1}>
+                    If you have a test booked, enter the date so your instructor can help you prepare
                   </Text>
                 </FormControl>
 

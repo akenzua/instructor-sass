@@ -284,6 +284,10 @@ export class AuthService {
       updateData.phone = dto.phone.trim();
     }
 
+    if (dto.testDate) {
+      updateData.testDate = new Date(dto.testDate);
+    }
+
     const updated = await this.learnerModel.findByIdAndUpdate(
       learnerId,
       { $set: updateData },

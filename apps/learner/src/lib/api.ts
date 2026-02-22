@@ -73,6 +73,7 @@ export const authApi = {
     dateOfBirth: string;
     provisionalLicenceNumber: string;
     phone?: string;
+    testDate?: string;
   }) => {
     const response = await api.post('/auth/learner/complete-profile', data);
     return response.data as {
