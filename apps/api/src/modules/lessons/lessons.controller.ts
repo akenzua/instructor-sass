@@ -46,6 +46,11 @@ export class LessonsController {
     return this.lessonsService.getStats(req.user.id);
   }
 
+  @Get("stats/dashboard")
+  async getDashboardStats(@Request() req: { user: { id: string } }) {
+    return this.lessonsService.getDashboardStats(req.user.id);
+  }
+
   @Get(":id")
   async findById(
     @Request() req: { user: { id: string } },

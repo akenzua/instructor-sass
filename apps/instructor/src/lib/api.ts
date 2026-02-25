@@ -17,6 +17,91 @@ import type {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api";
 
+// ============================================================================
+// Full Dashboard Stats (from /lessons/stats/dashboard)
+// ============================================================================
+
+export interface WeeklyTrendItem {
+  week: string;
+  earnings: number;
+  lessons: number;
+}
+
+export interface LessonTypeBreakdown {
+  type: string;
+  label: string;
+  count: number;
+  revenue: number;
+}
+
+export interface CompletionStats {
+  total: number;
+  completed: number;
+  cancelled: number;
+  noShow: number;
+  completionRate: number;
+}
+
+export interface TodayScheduleItem {
+  _id: string;
+  startTime: string;
+  endTime: string;
+  duration: number;
+  type: string;
+  status: string;
+  pickupLocation?: string;
+  learner?: {
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+  };
+}
+
+export interface UpcomingTestDate {
+  _id: string;
+  firstName?: string;
+  lastName?: string;
+  testDate: string;
+}
+
+export interface RecentActivityItem {
+  _id: string;
+  startTime: string;
+  status: string;
+  type: string;
+  price: number;
+  completedAt?: string;
+  cancelledAt?: string;
+  learner?: {
+    firstName?: string;
+    lastName?: string;
+  };
+}
+
+export interface MonthlyHistoryItem {
+  month: string;
+  earnings: number;
+  lessons: number;
+}
+
+export interface FullDashboardStats {
+  todayLessons: number;
+  weekLessons: number;
+  activeLearners: number;
+  totalLearners: number;
+  monthlyEarnings: number;
+  earningsChange: number;
+  unpaidLessons: number;
+  unpaidAmount: number;
+  weeklyTrend: WeeklyTrendItem[];
+  lessonTypes: LessonTypeBreakdown[];
+  completionStats: CompletionStats;
+  todaySchedule: TodayScheduleItem[];
+  upcomingTestDates: UpcomingTestDate[];
+  recentActivity: RecentActivityItem[];
+  monthlyHistory: MonthlyHistoryItem[];
+}
+
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -232,6 +317,11 @@ export const lessonsApi = {
 
   getStats: async (): Promise<DashboardStats> => {
     const res = await api.get<DashboardStats>("/lessons/stats");
+    return res.data;
+  },
+
+  getDashboardStats: async (): Promise<FullDashboardStats> => {
+    const res = await api.get<FullDashboardStats>("/lessons/stats/dashboard");
     return res.data;
   },
 };

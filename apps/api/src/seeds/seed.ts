@@ -756,13 +756,98 @@ async function seed() {
   ]);
   console.log(`👥 Created ${learners.length} learners`);
 
-  // Create lessons for the next 2 weeks
-  const lessons = [];
+  // ── Create historical completed lessons (past 6 months) ──────────────
+  const lessons: any[] = [];
   const now = new Date();
-  const lessonTypes = ['standard', 'test-prep', 'mock-test', 'motorway'];
+  const lessonTypes = ['standard', 'test-prep', 'mock-test', 'motorway', 'refresher'];
+  const pickupLocations = ['123 Main Street', '45 High Road', '78 Park Avenue', '12 Station Road'];
+  const prices = [85, 90, 95, 100, 110];
 
-  for (let i = 0; i < 10; i++) {
-    const dayOffset = Math.floor(i / 2); // 2 lessons per day
+  // Generate ~3-5 lessons per week for the past 26 weeks (6 months)
+  for (let weeksAgo = 26; weeksAgo >= 1; weeksAgo--) {
+    const lessonsThisWeek = 3 + Math.floor(Math.random() * 3); // 3-5 lessons
+
+    for (let j = 0; j < lessonsThisWeek; j++) {
+      const dayInWeek = Math.floor(Math.random() * 5); // Mon–Fri
+      const hour = 9 + Math.floor(Math.random() * 7); // 9am–3pm start
+
+      const startTime = new Date(now);
+      startTime.setDate(now.getDate() - weeksAgo * 7 + dayInWeek);
+      startTime.setHours(hour, 0, 0, 0);
+
+      const duration = [60, 90, 120][Math.floor(Math.random() * 3)];
+      const endTime = new Date(startTime);
+      endTime.setMinutes(startTime.getMinutes() + duration);
+
+      const completedAt = new Date(endTime);
+      completedAt.setMinutes(completedAt.getMinutes() + 5); // completed shortly after end
+
+      const learner = learners[Math.floor(Math.random() * learners.length)];
+      const isCancelled = Math.random() < 0.08; // ~8% cancellation rate
+      const isNoShow = !isCancelled && Math.random() < 0.03; // ~3% no-show rate
+      const price = prices[Math.floor(Math.random() * prices.length)];
+
+      lessons.push({
+        instructorId: instructor._id,
+        learnerId: learner._id,
+        startTime,
+        endTime,
+        duration,
+        type: lessonTypes[Math.floor(Math.random() * lessonTypes.length)],
+        status: isCancelled ? 'cancelled' : isNoShow ? 'no-show' : 'completed',
+        paymentStatus: isCancelled
+          ? 'refunded'
+          : Math.random() < 0.85
+          ? 'paid'
+          : 'pending',
+        price,
+        pickupLocation: pickupLocations[Math.floor(Math.random() * pickupLocations.length)],
+        notes: `Week ${27 - weeksAgo} lesson`,
+        ...(isCancelled
+          ? { cancelledAt: new Date(startTime.getTime() - 24 * 60 * 60 * 1000), cancelledBy: 'learner' }
+          : isNoShow
+          ? {}
+          : { completedAt }),
+      });
+    }
+  }
+
+  // ── Today's lessons ────────────────────────────────────────────────────
+  const todaySlots = [
+    { hour: 9, type: 'standard', status: 'completed' as const },
+    { hour: 11, type: 'test-prep', status: 'completed' as const },
+    { hour: 14, type: 'standard', status: 'scheduled' as const },
+    { hour: 16, type: 'mock-test', status: 'scheduled' as const },
+  ];
+
+  for (const slot of todaySlots) {
+    const startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), slot.hour, 0, 0, 0);
+    const endTime = new Date(startTime);
+    endTime.setHours(startTime.getHours() + 2);
+
+    const learner = learners[Math.floor(Math.random() * learners.length)];
+    const isCompleted = slot.status === 'completed';
+    const completedAt = isCompleted ? new Date(endTime.getTime() + 5 * 60 * 1000) : undefined;
+
+    lessons.push({
+      instructorId: instructor._id,
+      learnerId: learner._id,
+      startTime,
+      endTime,
+      duration: 120,
+      type: slot.type,
+      status: slot.status,
+      paymentStatus: isCompleted ? 'paid' : 'pending',
+      price: 90,
+      pickupLocation: '123 Main Street',
+      notes: `Today's ${slot.type} lesson`,
+      ...(completedAt ? { completedAt } : {}),
+    });
+  }
+
+  // ── Upcoming lessons (next 2 weeks) ────────────────────────────────────
+  for (let i = 1; i <= 10; i++) {
+    const dayOffset = Math.ceil(i / 2);
     const isAfternoon = i % 2 === 1;
 
     const startTime = new Date(now);
@@ -773,7 +858,6 @@ async function seed() {
     endTime.setHours(startTime.getHours() + 2);
 
     const learner = learners[i % learners.length];
-    const isPast = dayOffset < 0 || (dayOffset === 0 && startTime < now);
 
     lessons.push({
       instructorId: instructor._id,
@@ -782,16 +866,16 @@ async function seed() {
       endTime,
       duration: 120,
       type: lessonTypes[i % lessonTypes.length],
-      status: isPast ? 'completed' : 'scheduled',
-      paymentStatus: i < 4 ? 'paid' : 'pending', // First 4 paid, rest pending
+      status: 'scheduled',
+      paymentStatus: 'pending',
       price: 90,
-      pickupLocation: '123 Main Street',
-      notes: `Lesson ${i + 1} notes`,
+      pickupLocation: pickupLocations[i % pickupLocations.length],
+      notes: `Upcoming lesson ${i}`,
     });
   }
 
   await Lesson.insertMany(lessons);
-  console.log(`📚 Created ${lessons.length} lessons`);
+  console.log(`📚 Created ${lessons.length} lessons (${lessons.filter(l => l.status === 'completed').length} completed, ${lessons.filter(l => l.status === 'scheduled').length} upcoming)`);
 
   // Create weekly availability
   const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];

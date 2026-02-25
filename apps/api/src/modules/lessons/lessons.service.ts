@@ -11,6 +11,7 @@ import { Model, Types } from "mongoose";
 import { Lesson, LessonDocument } from "../../schemas/lesson.schema";
 import { Instructor, InstructorDocument } from "../../schemas/instructor.schema";
 import { Payment, PaymentDocument } from "../../schemas/payment.schema";
+import { Learner, LearnerDocument } from "../../schemas/learner.schema";
 import { CreateLessonDto, UpdateLessonDto, LessonQueryDto } from "./dto/lesson.dto";
 import { LearnersService } from "../learners/learners.service";
 
@@ -23,6 +24,8 @@ export class LessonsService {
     private instructorModel: Model<InstructorDocument>,
     @InjectModel(Payment.name)
     private paymentModel: Model<PaymentDocument>,
+    @InjectModel(Learner.name)
+    private learnerModel: Model<LearnerDocument>,
     @Inject(forwardRef(() => LearnersService))
     private learnersService: LearnersService
   ) {}
@@ -601,5 +604,415 @@ export class LessonsService {
       unpaidAmount: unpaid.amount,
       monthlyEarnings: earnings,
     };
+  }
+
+  async getDashboardStats(instructorId: string) {
+    const now = new Date();
+    const instructorObjId = new Types.ObjectId(instructorId);
+
+    // Time boundaries
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+
+    const startOfWeek = new Date(startOfDay);
+    const dayOfWeek = startOfWeek.getDay();
+    startOfWeek.setDate(startOfWeek.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1)); // Monday
+
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    // 12 weeks back for trends
+    const twelveWeeksAgo = new Date(startOfDay);
+    twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - 84);
+
+    // 6 months back for monthly history
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+
+    const [
+      todayLessons,
+      weekLessons,
+      unpaidStats,
+      monthlyEarnings,
+      lastMonthEarnings,
+      activeLearners,
+      totalLearners,
+      weeklyEarningsTrend,
+      lessonTypeBreakdown,
+      completionRate,
+      todaySchedule,
+      upcomingTestDates,
+      recentActivity,
+      monthlyHistoryRaw,
+    ] = await Promise.all([
+      // Today's lessons
+      this.lessonModel.countDocuments({
+        instructorId: instructorObjId,
+        startTime: { $gte: startOfDay, $lt: endOfDay },
+        status: { $in: ['scheduled', 'pending-confirmation'] },
+      }),
+
+      // This week's lessons
+      this.lessonModel.countDocuments({
+        instructorId: instructorObjId,
+        startTime: { $gte: startOfWeek },
+        status: { $in: ['scheduled', 'pending-confirmation'] },
+      }),
+
+      // Unpaid completed lessons
+      this.lessonModel.aggregate([
+        {
+          $match: {
+            instructorId: instructorObjId,
+            status: 'completed',
+            paymentStatus: 'pending',
+          },
+        },
+        {
+          $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$price' } },
+        },
+      ]),
+
+      // This month's earnings
+      this.lessonModel.aggregate([
+        {
+          $match: {
+            instructorId: instructorObjId,
+            completedAt: { $gte: startOfMonth, $lt: endOfMonth },
+            paymentStatus: { $in: ['paid', 'pending'] },
+            status: 'completed',
+          },
+        },
+        { $group: { _id: null, total: { $sum: '$price' } } },
+      ]),
+
+      // Last month's earnings (for comparison)
+      this.lessonModel.aggregate([
+        {
+          $match: {
+            instructorId: instructorObjId,
+            completedAt: { $gte: startOfLastMonth, $lt: startOfMonth },
+            paymentStatus: { $in: ['paid', 'pending'] },
+            status: 'completed',
+          },
+        },
+        { $group: { _id: null, total: { $sum: '$price' } } },
+      ]),
+
+      // Active learners count
+      this.learnerModel.countDocuments({
+        instructorId: instructorObjId,
+        status: 'active',
+      }),
+
+      // Total learners count
+      this.learnerModel.countDocuments({
+        instructorId: instructorObjId,
+      }),
+
+      // Weekly earnings trend (last 12 weeks)
+      this.lessonModel.aggregate([
+        {
+          $match: {
+            instructorId: instructorObjId,
+            completedAt: { $gte: twelveWeeksAgo },
+            status: 'completed',
+            paymentStatus: { $in: ['paid', 'pending'] },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              year: { $isoWeekYear: '$completedAt' },
+              week: { $isoWeek: '$completedAt' },
+            },
+            earnings: { $sum: '$price' },
+            lessons: { $sum: 1 },
+          },
+        },
+        { $sort: { '_id.year': 1, '_id.week': 1 } },
+      ]),
+
+      // Lesson type breakdown (last 3 months)
+      this.lessonModel.aggregate([
+        {
+          $match: {
+            instructorId: instructorObjId,
+            startTime: { $gte: new Date(now.getFullYear(), now.getMonth() - 3, 1) },
+            status: { $ne: 'cancelled' },
+          },
+        },
+        {
+          $group: {
+            _id: '$type',
+            count: { $sum: 1 },
+            revenue: { $sum: '$price' },
+          },
+        },
+        { $sort: { count: -1 } },
+      ]),
+
+      // Completion rate (last 3 months)
+      this.lessonModel.aggregate([
+        {
+          $match: {
+            instructorId: instructorObjId,
+            startTime: { $gte: new Date(now.getFullYear(), now.getMonth() - 3, 1) },
+          },
+        },
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+
+      // Today's schedule (detailed)
+      this.lessonModel.aggregate([
+        {
+          $match: {
+            instructorId: instructorObjId,
+            startTime: { $gte: startOfDay, $lt: endOfDay },
+            status: { $in: ['scheduled', 'pending-confirmation', 'completed'] },
+          },
+        },
+        { $sort: { startTime: 1 } },
+        {
+          $lookup: {
+            from: 'learners',
+            localField: 'learnerId',
+            foreignField: '_id',
+            as: 'learner',
+          },
+        },
+        { $unwind: { path: '$learner', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 1,
+            startTime: 1,
+            endTime: 1,
+            duration: 1,
+            type: 1,
+            status: 1,
+            pickupLocation: 1,
+            'learner.firstName': 1,
+            'learner.lastName': 1,
+            'learner.phone': 1,
+          },
+        },
+      ]),
+
+      // Upcoming test dates (learners with test dates in the future)
+      this.learnerModel.find({
+        instructorId: instructorObjId,
+        status: 'active',
+        testDate: { $gte: now },
+      }).select('firstName lastName testDate').sort({ testDate: 1 }).limit(5).lean(),
+
+      // Recent activity (last 10 lessons completed/cancelled)
+      this.lessonModel.aggregate([
+        {
+          $match: {
+            instructorId: instructorObjId,
+            status: { $in: ['completed', 'cancelled'] },
+            updatedAt: { $gte: new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000) },
+          },
+        },
+        { $sort: { updatedAt: -1 } },
+        { $limit: 10 },
+        {
+          $lookup: {
+            from: 'learners',
+            localField: 'learnerId',
+            foreignField: '_id',
+            as: 'learner',
+          },
+        },
+        { $unwind: { path: '$learner', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 1,
+            startTime: 1,
+            status: 1,
+            type: 1,
+            price: 1,
+            completedAt: 1,
+            cancelledAt: 1,
+            'learner.firstName': 1,
+            'learner.lastName': 1,
+          },
+        },
+      ]),
+
+      // Monthly earnings history (last 6 months)
+      this.lessonModel.aggregate([
+        {
+          $match: {
+            instructorId: instructorObjId,
+            completedAt: { $gte: sixMonthsAgo },
+            status: 'completed',
+            paymentStatus: { $in: ['paid', 'pending'] },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$completedAt' },
+              month: { $month: '$completedAt' },
+            },
+            earnings: { $sum: '$price' },
+            lessons: { $sum: 1 },
+          },
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } },
+      ]),
+    ]);
+
+    const unpaid = unpaidStats[0] || { count: 0, amount: 0 };
+    const thisMonthTotal = monthlyEarnings[0]?.total || 0;
+    const lastMonthTotal = lastMonthEarnings[0]?.total || 0;
+    const earningsChange = lastMonthTotal > 0
+      ? Math.round(((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100)
+      : thisMonthTotal > 0 ? 100 : 0;
+
+    // Build weekly trend with labels
+    const weeklyTrend = this.buildWeeklyTrend(weeklyEarningsTrend, twelveWeeksAgo);
+
+    // Build lesson type data
+    const typeLabels: Record<string, string> = {
+      standard: 'Standard',
+      'test-prep': 'Test Prep',
+      'mock-test': 'Mock Test',
+      motorway: 'Motorway',
+      refresher: 'Refresher',
+    };
+    const lessonTypes = lessonTypeBreakdown.map((t: any) => ({
+      type: t._id,
+      label: typeLabels[t._id] || t._id,
+      count: t.count,
+      revenue: t.revenue,
+    }));
+
+    // Completion stats
+    const statusCounts: Record<string, number> = {};
+    completionRate.forEach((s: any) => { statusCounts[s._id] = s.count; });
+    const totalLessonsInPeriod = Object.values(statusCounts).reduce((a, b) => a + b, 0);
+    const completedCount = statusCounts['completed'] || 0;
+    const cancelledCount = statusCounts['cancelled'] || 0;
+    const noShowCount = statusCounts['no-show'] || 0;
+
+    return {
+      // Core metrics
+      todayLessons,
+      weekLessons,
+      activeLearners,
+      totalLearners,
+      monthlyEarnings: thisMonthTotal,
+      earningsChange,
+      unpaidLessons: unpaid.count,
+      unpaidAmount: unpaid.amount,
+
+      // Weekly earnings trend (12 weeks)
+      weeklyTrend,
+
+      // Lesson type breakdown
+      lessonTypes,
+
+      // Completion stats (last 3 months)
+      completionStats: {
+        total: totalLessonsInPeriod,
+        completed: completedCount,
+        cancelled: cancelledCount,
+        noShow: noShowCount,
+        completionRate: totalLessonsInPeriod > 0
+          ? Math.round((completedCount / totalLessonsInPeriod) * 100)
+          : 0,
+      },
+
+      // Today's schedule
+      todaySchedule,
+
+      // Upcoming test dates
+      upcomingTestDates,
+
+      // Recent activity
+      recentActivity,
+
+      // Monthly earnings history (6 months)
+      monthlyHistory: this.buildMonthlyHistory(monthlyHistoryRaw, sixMonthsAgo, now),
+    };
+  }
+
+  private buildWeeklyTrend(
+    data: Array<{ _id: { year: number; week: number }; earnings: number; lessons: number }>,
+    startDate: Date,
+  ) {
+    const weeks: Array<{ week: string; earnings: number; lessons: number }> = [];
+    const dataMap = new Map(
+      data.map((d) => [`${d._id.year}-${d._id.week}`, d]),
+    );
+
+    const current = new Date(startDate);
+    for (let i = 0; i < 12; i++) {
+      const weekStart = new Date(current);
+      weekStart.setDate(current.getDate() + i * 7);
+
+      // Get ISO week
+      const tempDate = new Date(weekStart);
+      tempDate.setHours(0, 0, 0, 0);
+      tempDate.setDate(tempDate.getDate() + 3 - ((tempDate.getDay() + 6) % 7));
+      const week1 = new Date(tempDate.getFullYear(), 0, 4);
+      const isoWeek = 1 + Math.round(
+        ((tempDate.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7,
+      );
+      const isoYear = tempDate.getFullYear();
+
+      const key = `${isoYear}-${isoWeek}`;
+      const match = dataMap.get(key);
+
+      const label = weekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+
+      weeks.push({
+        week: label,
+        earnings: match?.earnings || 0,
+        lessons: match?.lessons || 0,
+      });
+    }
+
+    return weeks;
+  }
+
+  private buildMonthlyHistory(
+    data: Array<{ _id: { year: number; month: number }; earnings: number; lessons: number }>,
+    startDate: Date,
+    endDate: Date,
+  ) {
+    const months: Array<{ month: string; earnings: number; lessons: number }> = [];
+    const dataMap = new Map(
+      data.map((d) => [`${d._id.year}-${d._id.month}`, d]),
+    );
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    const current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+    const end = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+
+    while (current <= end) {
+      const key = `${current.getFullYear()}-${current.getMonth() + 1}`; // Mongo $month is 1-based
+      const match = dataMap.get(key);
+
+      months.push({
+        month: `${monthNames[current.getMonth()]} ${current.getFullYear()}`,
+        earnings: match?.earnings || 0,
+        lessons: match?.lessons || 0,
+      });
+
+      current.setMonth(current.getMonth() + 1);
+    }
+
+    return months;
   }
 }

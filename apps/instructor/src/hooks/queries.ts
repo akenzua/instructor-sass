@@ -27,6 +27,15 @@ export function useLessonStats() {
   });
 }
 
+export function useDashboardStats() {
+  return useQuery({
+    queryKey: ["lessons", "stats", "dashboard"],
+    queryFn: () => lessonsApi.getDashboardStats(),
+    staleTime: 60_000, // 1 minute
+    refetchInterval: 5 * 60_000, // refresh every 5 min
+  });
+}
+
 export function useLearners(params?: {
   page?: number;
   limit?: number;
