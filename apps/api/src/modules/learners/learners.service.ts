@@ -30,9 +30,11 @@ export class LearnersService {
   ) {}
 
   async create(instructorId: string, dto: CreateLearnerDto): Promise<LearnerDocument> {
+    const instructorObjId = new Types.ObjectId(instructorId);
+
     // Check for duplicate email for this instructor
     const existing = await this.learnerModel.findOne({
-      instructorId,
+      instructorId: instructorObjId,
       email: dto.email.toLowerCase(),
     });
     if (existing) {
@@ -42,7 +44,7 @@ export class LearnersService {
     const learner = await this.learnerModel.create({
       ...dto,
       email: dto.email.toLowerCase(),
-      instructorId,
+      instructorId: instructorObjId,
     });
 
     // Send invite email with magic link
@@ -75,7 +77,7 @@ export class LearnersService {
   async findAll(instructorId: string, query: LearnerQueryDto) {
     const { page = 1, limit = 20, status, search } = query;
 
-    const filter: Record<string, unknown> = { instructorId };
+    const filter: Record<string, unknown> = { instructorId: new Types.ObjectId(instructorId) };
 
     if (status) {
       filter.status = status;
@@ -108,7 +110,7 @@ export class LearnersService {
   }
 
   async findById(instructorId: string, id: string): Promise<LearnerDocument> {
-    const learner = await this.learnerModel.findOne({ _id: id, instructorId });
+    const learner = await this.learnerModel.findOne({ _id: id, instructorId: new Types.ObjectId(instructorId) });
     if (!learner) {
       throw new NotFoundException("Learner not found");
     }
@@ -121,7 +123,7 @@ export class LearnersService {
     dto: UpdateLearnerDto
   ): Promise<LearnerDocument> {
     const learner = await this.learnerModel.findOneAndUpdate(
-      { _id: id, instructorId },
+      { _id: id, instructorId: new Types.ObjectId(instructorId) },
       { $set: dto },
       { new: true }
     );
@@ -132,7 +134,7 @@ export class LearnersService {
   }
 
   async delete(instructorId: string, id: string): Promise<void> {
-    const result = await this.learnerModel.deleteOne({ _id: id, instructorId });
+    const result = await this.learnerModel.deleteOne({ _id: id, instructorId: new Types.ObjectId(instructorId) });
     if (result.deletedCount === 0) {
       throw new NotFoundException("Learner not found");
     }
