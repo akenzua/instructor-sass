@@ -89,6 +89,22 @@ export class Lesson {
   @Prop()
   completedAt?: Date;
 
+  // Syllabus / scoring fields
+  @Prop({ type: Types.ObjectId, ref: "Syllabus" })
+  syllabusId?: Types.ObjectId;
+
+  @Prop({ min: 1 })
+  topicOrder?: number; // Which syllabus topic was covered
+
+  @Prop()
+  topicTitle?: string; // Denormalised for quick display
+
+  @Prop({ min: 1, max: 5 })
+  topicScore?: number; // 1-5 score given at end of lesson
+
+  @Prop()
+  topicNotes?: string; // Instructor's notes on learner's topic performance
+
   @Prop({
     type: {
       fortyEightHour: { type: Boolean, default: false },

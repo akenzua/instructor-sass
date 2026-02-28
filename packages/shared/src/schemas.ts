@@ -229,6 +229,12 @@ export const lessonSchema = z.object({
   cancellationRefundAmount: z.number().nonnegative().optional(),
   cancelledAt: z.string().datetime().optional(),
   completedAt: z.string().datetime().optional(),
+  // Syllabus / scoring fields
+  syllabusId: objectIdSchema.optional(),
+  topicOrder: z.number().int().min(1).optional(),
+  topicTitle: z.string().optional(),
+  topicScore: z.number().int().min(1).max(5).optional(),
+  topicNotes: z.string().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -479,3 +485,77 @@ export const dashboardStatsSchema = z.object({
 });
 
 export type DashboardStats = z.infer<typeof dashboardStatsSchema>;
+
+// ============================================================================
+// Syllabus
+// ============================================================================
+
+export const syllabusTopicSchema = z.object({
+  order: z.number().int().min(1),
+  title: z.string().min(1).max(200),
+  description: z.string().optional(),
+  category: z.string().min(1).max(100),
+  keySkills: z.array(z.string()).default([]),
+});
+
+export const syllabusSchema = z.object({
+  _id: objectIdSchema,
+  instructorId: objectIdSchema,
+  name: z.string().min(1).max(200),
+  description: z.string().optional(),
+  isDefault: z.boolean().default(false),
+  topics: z.array(syllabusTopicSchema),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export const createSyllabusSchema = syllabusSchema.omit({
+  _id: true,
+  instructorId: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateSyllabusSchema = createSyllabusSchema.partial();
+
+export type SyllabusTopic = z.infer<typeof syllabusTopicSchema>;
+export type Syllabus = z.infer<typeof syllabusSchema>;
+export type CreateSyllabus = z.infer<typeof createSyllabusSchema>;
+export type UpdateSyllabus = z.infer<typeof updateSyllabusSchema>;
+
+// ============================================================================
+// Learner Progress (per learner × syllabus)
+// ============================================================================
+
+export const scoreHistoryEntrySchema = z.object({
+  lessonId: objectIdSchema.optional(),
+  date: z.string().datetime(),
+  score: z.number().int().min(1).max(5),
+  notes: z.string().optional(),
+});
+
+export const topicProgressStatusSchema = z.enum(["not-started", "in-progress", "completed"]);
+
+export const topicProgressSchema = z.object({
+  topicOrder: z.number().int().min(1),
+  status: topicProgressStatusSchema.default("not-started"),
+  currentScore: z.number().int().min(0).max(5).default(0),
+  attempts: z.number().int().default(0),
+  history: z.array(scoreHistoryEntrySchema).default([]),
+  completedAt: z.string().datetime().optional(),
+});
+
+export const learnerProgressSchema = z.object({
+  _id: objectIdSchema,
+  learnerId: objectIdSchema,
+  instructorId: objectIdSchema,
+  syllabusId: objectIdSchema,
+  topicProgress: z.array(topicProgressSchema),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export type ScoreHistoryEntry = z.infer<typeof scoreHistoryEntrySchema>;
+export type TopicProgressStatus = z.infer<typeof topicProgressStatusSchema>;
+export type TopicProgress = z.infer<typeof topicProgressSchema>;
+export type LearnerProgressRecord = z.infer<typeof learnerProgressSchema>;

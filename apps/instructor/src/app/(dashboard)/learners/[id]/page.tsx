@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useEffect, useRef, useState, useMemo } from "react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import {
+  Accordion,
+  AccordionButton,
+  AccordionIcon,
+  AccordionItem,
+  AccordionPanel,
   AlertDialog,
   AlertDialogBody,
   AlertDialogContent,
@@ -13,6 +18,8 @@ import {
   Button,
   Card,
   CardBody,
+  CircularProgress,
+  CircularProgressLabel,
   FormControl,
   FormLabel,
   Grid,
@@ -28,6 +35,7 @@ import {
   ModalFooter,
   ModalHeader,
   ModalOverlay,
+  Progress,
   Select,
   Skeleton,
   SkeletonText,
@@ -36,12 +44,17 @@ import {
   TabPanel,
   TabPanels,
   Tabs,
+  Tag,
   Text,
   Textarea,
+  Tooltip,
   VStack,
+  Wrap,
+  WrapItem,
   useDisclosure,
   useToast,
   Badge,
+  Divider,
 } from "@chakra-ui/react";
 import {
   ArrowLeft,
@@ -50,16 +63,50 @@ import {
   Calendar,
   Edit,
   Trash2,
+  CheckCircle2,
+  Circle,
+  RotateCcw,
+  BookOpen,
 } from "lucide-react";
 import { format } from "date-fns";
 import { LessonCard } from "@acme/ui";
-import { useLearner, useLessons, useDeleteLearner, useUpdateLearner } from "@/hooks";
+import {
+  useLearner,
+  useLessons,
+  useDeleteLearner,
+  useUpdateLearner,
+  useLearnerProgress,
+  useCompleteTopic,
+  useReopenTopic,
+} from "@/hooks";
 import { LessonDrawer } from "@/components";
 import type { Lesson } from "@acme/shared";
+import type { TopicProgressEntry, SyllabusTopic } from "@/lib/api";
+
+const SCORE_LABELS: Record<number, { label: string; color: string }> = {
+  1: { label: "Introduced", color: "red" },
+  2: { label: "Developing", color: "orange" },
+  3: { label: "Consolidating", color: "yellow" },
+  4: { label: "Competent", color: "blue" },
+  5: { label: "Independent", color: "green" },
+};
+
+const CATEGORY_COLORS: Record<string, string> = {
+  "Vehicle Controls & Precautions": "blue",
+  "Junctions & Roundabouts": "purple",
+  "Road Procedure": "teal",
+  "Judgement & Meeting Traffic": "orange",
+  "Awareness & Planning": "cyan",
+  Manoeuvres: "pink",
+  "Emergency & Independent": "red",
+  "Additional Road Types & Conditions": "green",
+  "Test Preparation": "yellow",
+};
 
 export default function LearnerDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const toast = useToast();
   const drawer = useDisclosure();
   const deleteDialog = useDisclosure();
@@ -91,8 +138,25 @@ export default function LearnerDetailPage() {
     learnerId,
     limit: 50,
   });
+  const { data: progressData, isLoading: progressLoading } = useLearnerProgress(learnerId);
   const deleteMutation = useDeleteLearner();
   const updateMutation = useUpdateLearner();
+  const completeTopicMutation = useCompleteTopic();
+  const reopenTopicMutation = useReopenTopic();
+
+  // Auto-open lesson drawer if ?complete=lessonId is in URL (from notification)
+  useEffect(() => {
+    const completeLessonId = searchParams.get("complete");
+    if (completeLessonId && lessonsData?.items && !selectedLesson) {
+      const lesson = lessonsData.items.find((l) => l._id === completeLessonId);
+      if (lesson) {
+        setSelectedLesson(lesson);
+        drawer.onOpen();
+        // Clean the URL param
+        router.replace(`/learners/${learnerId}`, { scroll: false });
+      }
+    }
+  }, [searchParams, lessonsData, selectedLesson, drawer, learnerId, router]);
 
   // Populate edit form when learner loads or edit modal opens
   useEffect(() => {
@@ -194,6 +258,88 @@ export default function LearnerDetailPage() {
       currency: "GBP",
     }).format(amount);
   };
+
+  const handleCompleteTopic = async (topicOrder: number) => {
+    try {
+      await completeTopicMutation.mutateAsync({ learnerId, topicOrder });
+      toast({ title: "Topic marked as complete", status: "success", duration: 2000 });
+    } catch (error) {
+      toast({
+        title: "Failed to complete topic",
+        description: error instanceof Error ? error.message : "Unknown error",
+        status: "error",
+        duration: 5000,
+      });
+    }
+  };
+
+  const handleReopenTopic = async (topicOrder: number) => {
+    try {
+      await reopenTopicMutation.mutateAsync({ learnerId, topicOrder });
+      toast({ title: "Topic reopened", status: "success", duration: 2000 });
+    } catch (error) {
+      toast({
+        title: "Failed to reopen topic",
+        description: error instanceof Error ? error.message : "Unknown error",
+        status: "error",
+        duration: 5000,
+      });
+    }
+  };
+
+  // Build progress lookup map
+  const progressMap = useMemo(() => {
+    if (!progressData?.progress?.topicProgress) return new Map<number, TopicProgressEntry>();
+    const map = new Map<number, TopicProgressEntry>();
+    for (const tp of progressData.progress.topicProgress) {
+      map.set(tp.topicOrder, tp);
+    }
+    return map;
+  }, [progressData]);
+
+  // Group syllabus topics by category with progress
+  const categorizedProgress = useMemo(() => {
+    if (!progressData?.syllabus?.topics) return [];
+    const groups: Record<string, (SyllabusTopic & { progress?: TopicProgressEntry })[]> = {};
+    for (const topic of progressData.syllabus.topics) {
+      if (!groups[topic.category]) groups[topic.category] = [];
+      groups[topic.category].push({
+        ...topic,
+        progress: progressMap.get(topic.order),
+      });
+    }
+    return Object.entries(groups).map(([category, topics]) => ({
+      category,
+      topics: topics.sort((a, b) => a.order - b.order),
+    }));
+  }, [progressData, progressMap]);
+
+  // Overall progress stats
+  const progressStats = useMemo(() => {
+    if (!progressData?.progress?.topicProgress || !progressData?.syllabus?.topics) {
+      return { total: 0, completed: 0, inProgress: 0, notStarted: 0, avgScore: 0 };
+    }
+    const total = progressData.syllabus.topics.length;
+    let completed = 0;
+    let inProgress = 0;
+    let scoreSum = 0;
+    let scoreCount = 0;
+    for (const tp of progressData.progress.topicProgress) {
+      if (tp.status === "completed") completed++;
+      else if (tp.status === "in-progress") inProgress++;
+      if (tp.currentScore > 0) {
+        scoreSum += tp.currentScore;
+        scoreCount++;
+      }
+    }
+    return {
+      total,
+      completed,
+      inProgress,
+      notStarted: total - completed - inProgress,
+      avgScore: scoreCount > 0 ? Math.round((scoreSum / scoreCount) * 10) / 10 : 0,
+    };
+  }, [progressData]);
 
   const upcomingLessons =
     lessonsData?.items.filter((l) => l.status === "scheduled") || [];
@@ -349,7 +495,7 @@ export default function LearnerDetailPage() {
               </CardBody>
             </Card>
 
-            {/* Lessons Tabs */}
+            {/* Lessons & Progress Tabs */}
             <Card>
               <CardBody p={0}>
                 <Tabs>
@@ -359,6 +505,17 @@ export default function LearnerDetailPage() {
                     </Tab>
                     <Tab>
                       History ({pastLessons.length})
+                    </Tab>
+                    <Tab>
+                      <HStack spacing={1}>
+                        <BookOpen size={14} />
+                        <Text>Progress</Text>
+                        {progressStats.total > 0 && (
+                          <Badge colorScheme="primary" fontSize="xs" ml={1}>
+                            {progressStats.completed}/{progressStats.total}
+                          </Badge>
+                        )}
+                      </HStack>
                     </Tab>
                   </TabList>
 
@@ -427,6 +584,392 @@ export default function LearnerDetailPage() {
                         <Box py={8} textAlign="center">
                           <Text color="text.muted">No lesson history yet</Text>
                         </Box>
+                      )}
+                    </TabPanel>
+
+                    {/* Progress Tab */}
+                    <TabPanel>
+                      {progressLoading ? (
+                        <VStack spacing={3}>
+                          <Skeleton height="80px" width="100%" />
+                          <Skeleton height="80px" width="100%" />
+                          <Skeleton height="80px" width="100%" />
+                        </VStack>
+                      ) : !progressData ? (
+                        <Box py={10} textAlign="center">
+                          <VStack spacing={4}>
+                            <BookOpen size={48} color="var(--chakra-colors-gray-400)" />
+                            <Text color="text.muted" maxW="400px">
+                              Loading progress data…
+                            </Text>
+                          </VStack>
+                        </Box>
+                      ) : (
+                        <VStack spacing={6} align="stretch">
+                          {/* Summary Cards */}
+                          <Grid
+                            templateColumns={{ base: "1fr 1fr", md: "repeat(4, 1fr)" }}
+                            gap={4}
+                          >
+                            <Box
+                              p={4}
+                              bg="gray.50"
+                              _dark={{ bg: "gray.700" }}
+                              borderRadius="lg"
+                              textAlign="center"
+                            >
+                              <CircularProgress
+                                value={
+                                  progressStats.total > 0
+                                    ? (progressStats.completed / progressStats.total) * 100
+                                    : 0
+                                }
+                                size="60px"
+                                color="green.400"
+                                trackColor="gray.200"
+                              >
+                                <CircularProgressLabel fontSize="xs" fontWeight="bold">
+                                  {progressStats.total > 0
+                                    ? Math.round(
+                                        (progressStats.completed / progressStats.total) * 100,
+                                      )
+                                    : 0}
+                                  %
+                                </CircularProgressLabel>
+                              </CircularProgress>
+                              <Text fontSize="xs" color="text.muted" mt={1}>
+                                Overall
+                              </Text>
+                            </Box>
+
+                            <Box
+                              p={4}
+                              bg="green.50"
+                              _dark={{ bg: "green.900" }}
+                              borderRadius="lg"
+                              textAlign="center"
+                            >
+                              <Text fontSize="2xl" fontWeight="bold" color="green.500">
+                                {progressStats.completed}
+                              </Text>
+                              <Text fontSize="xs" color="text.muted">
+                                Completed
+                              </Text>
+                            </Box>
+
+                            <Box
+                              p={4}
+                              bg="blue.50"
+                              _dark={{ bg: "blue.900" }}
+                              borderRadius="lg"
+                              textAlign="center"
+                            >
+                              <Text fontSize="2xl" fontWeight="bold" color="blue.500">
+                                {progressStats.inProgress}
+                              </Text>
+                              <Text fontSize="xs" color="text.muted">
+                                In Progress
+                              </Text>
+                            </Box>
+
+                            <Box
+                              p={4}
+                              bg="orange.50"
+                              _dark={{ bg: "orange.900" }}
+                              borderRadius="lg"
+                              textAlign="center"
+                            >
+                              <Text fontSize="2xl" fontWeight="bold" color="orange.500">
+                                {progressStats.avgScore > 0
+                                  ? progressStats.avgScore
+                                  : "—"}
+                              </Text>
+                              <Text fontSize="xs" color="text.muted">
+                                Avg Score
+                              </Text>
+                            </Box>
+                          </Grid>
+
+                          {/* Score Legend */}
+                          <HStack spacing={3} flexWrap="wrap">
+                            {Object.entries(SCORE_LABELS).map(([score, { label, color }]) => (
+                              <HStack key={score} spacing={1}>
+                                <Badge colorScheme={color} variant="solid" fontSize="2xs">
+                                  {score}
+                                </Badge>
+                                <Text fontSize="xs" color="text.muted">
+                                  {label}
+                                </Text>
+                              </HStack>
+                            ))}
+                          </HStack>
+
+                          {/* Topics by Category */}
+                          <Accordion allowMultiple defaultIndex={[0]}>
+                            {categorizedProgress.map(({ category, topics }) => {
+                              const catCompleted = topics.filter(
+                                (t) => t.progress?.status === "completed",
+                              ).length;
+                              return (
+                                <AccordionItem key={category} border="none" mb={2}>
+                                  <AccordionButton
+                                    bg={`${CATEGORY_COLORS[category] || "gray"}.50`}
+                                    _dark={{
+                                      bg: `${CATEGORY_COLORS[category] || "gray"}.900`,
+                                    }}
+                                    borderRadius="lg"
+                                    _hover={{
+                                      bg: `${CATEGORY_COLORS[category] || "gray"}.100`,
+                                    }}
+                                  >
+                                    <Box flex="1" textAlign="left">
+                                      <HStack spacing={2}>
+                                        <Text fontWeight="semibold" fontSize="sm">
+                                          {category}
+                                        </Text>
+                                        <Badge
+                                          colorScheme={
+                                            catCompleted === topics.length
+                                              ? "green"
+                                              : "gray"
+                                          }
+                                          fontSize="2xs"
+                                        >
+                                          {catCompleted}/{topics.length}
+                                        </Badge>
+                                      </HStack>
+                                      <Progress
+                                        value={
+                                          topics.length > 0
+                                            ? (catCompleted / topics.length) * 100
+                                            : 0
+                                        }
+                                        size="xs"
+                                        colorScheme={
+                                          CATEGORY_COLORS[category] || "gray"
+                                        }
+                                        mt={1}
+                                        borderRadius="full"
+                                      />
+                                    </Box>
+                                    <AccordionIcon />
+                                  </AccordionButton>
+                                  <AccordionPanel pb={4} px={1}>
+                                    <VStack spacing={2} align="stretch">
+                                      {topics.map((topic) => {
+                                        const tp = topic.progress;
+                                        const status = tp?.status || "not-started";
+                                        const score = tp?.currentScore || 0;
+
+                                        return (
+                                          <Box
+                                            key={topic.order}
+                                            p={3}
+                                            borderWidth="1px"
+                                            borderRadius="md"
+                                            borderColor={
+                                              status === "completed"
+                                                ? "green.200"
+                                                : status === "in-progress"
+                                                ? "blue.200"
+                                                : "border.subtle"
+                                            }
+                                            bg={
+                                              status === "completed"
+                                                ? "green.50"
+                                                : status === "in-progress"
+                                                ? "blue.50"
+                                                : "transparent"
+                                            }
+                                            _dark={{
+                                              bg:
+                                                status === "completed"
+                                                  ? "green.900"
+                                                  : status === "in-progress"
+                                                  ? "blue.900"
+                                                  : "transparent",
+                                              borderColor:
+                                                status === "completed"
+                                                  ? "green.700"
+                                                  : status === "in-progress"
+                                                  ? "blue.700"
+                                                  : "border.subtle",
+                                            }}
+                                          >
+                                            <HStack justify="space-between" align="start">
+                                              <HStack spacing={2} flex={1}>
+                                                <Box mt={0.5}>
+                                                  {status === "completed" ? (
+                                                    <CheckCircle2
+                                                      size={18}
+                                                      color="var(--chakra-colors-green-500)"
+                                                    />
+                                                  ) : (
+                                                    <Circle
+                                                      size={18}
+                                                      color={
+                                                        status === "in-progress"
+                                                          ? "var(--chakra-colors-blue-400)"
+                                                          : "var(--chakra-colors-gray-400)"
+                                                      }
+                                                    />
+                                                  )}
+                                                </Box>
+                                                <Box flex={1}>
+                                                  <HStack spacing={2} mb={0.5}>
+                                                    <Badge
+                                                      colorScheme={
+                                                        CATEGORY_COLORS[topic.category] || "gray"
+                                                      }
+                                                      variant="subtle"
+                                                      fontSize="2xs"
+                                                    >
+                                                      #{topic.order}
+                                                    </Badge>
+                                                    <Text
+                                                      fontSize="sm"
+                                                      fontWeight="semibold"
+                                                      textDecoration={
+                                                        status === "completed"
+                                                          ? "none"
+                                                          : "none"
+                                                      }
+                                                    >
+                                                      {topic.title}
+                                                    </Text>
+                                                  </HStack>
+                                                  {topic.description && (
+                                                    <Text
+                                                      fontSize="xs"
+                                                      color="text.muted"
+                                                      noOfLines={2}
+                                                    >
+                                                      {topic.description}
+                                                    </Text>
+                                                  )}
+                                                  {score > 0 && (
+                                                    <HStack spacing={1} mt={1}>
+                                                      <Text
+                                                        fontSize="xs"
+                                                        color="text.muted"
+                                                      >
+                                                        Score:
+                                                      </Text>
+                                                      <Badge
+                                                        colorScheme={
+                                                          SCORE_LABELS[score]?.color ||
+                                                          "gray"
+                                                        }
+                                                        variant="solid"
+                                                        fontSize="2xs"
+                                                      >
+                                                        {score} –{" "}
+                                                        {SCORE_LABELS[score]?.label}
+                                                      </Badge>
+                                                      {tp?.attempts && tp.attempts > 0 && (
+                                                        <Text
+                                                          fontSize="2xs"
+                                                          color="text.muted"
+                                                        >
+                                                          ({tp.attempts} attempt
+                                                          {tp.attempts > 1 ? "s" : ""})
+                                                        </Text>
+                                                      )}
+                                                    </HStack>
+                                                  )}
+                                                  {/* Score history */}
+                                                  {tp?.history && tp.history.length > 0 && (
+                                                    <Box mt={2}>
+                                                      <Text
+                                                        fontSize="2xs"
+                                                        color="text.muted"
+                                                        fontWeight="medium"
+                                                        mb={1}
+                                                      >
+                                                        Score History:
+                                                      </Text>
+                                                      <Wrap spacing={1}>
+                                                        {tp.history
+                                                          .slice(-5)
+                                                          .map((h, i) => (
+                                                            <WrapItem key={i}>
+                                                              <Tooltip
+                                                                label={`${format(new Date(h.date), "dd MMM yyyy")}${h.notes ? ` – ${h.notes}` : ""}`}
+                                                                fontSize="xs"
+                                                              >
+                                                                <Badge
+                                                                  colorScheme={
+                                                                    SCORE_LABELS[h.score]
+                                                                      ?.color || "gray"
+                                                                  }
+                                                                  variant="outline"
+                                                                  fontSize="2xs"
+                                                                  cursor="pointer"
+                                                                >
+                                                                  {h.score}
+                                                                </Badge>
+                                                              </Tooltip>
+                                                            </WrapItem>
+                                                          ))}
+                                                      </Wrap>
+                                                    </Box>
+                                                  )}
+                                                </Box>
+                                              </HStack>
+
+                                              {/* Action buttons */}
+                                              <HStack spacing={1}>
+                                                {status === "in-progress" &&
+                                                  score >= 4 && (
+                                                    <Tooltip label="Mark as complete">
+                                                      <IconButton
+                                                        aria-label="Complete topic"
+                                                        icon={
+                                                          <CheckCircle2 size={16} />
+                                                        }
+                                                        size="xs"
+                                                        colorScheme="green"
+                                                        variant="ghost"
+                                                        onClick={() =>
+                                                          handleCompleteTopic(
+                                                            topic.order,
+                                                          )
+                                                        }
+                                                        isLoading={
+                                                          completeTopicMutation.isPending
+                                                        }
+                                                      />
+                                                    </Tooltip>
+                                                  )}
+                                                {status === "completed" && (
+                                                  <Tooltip label="Reopen topic">
+                                                    <IconButton
+                                                      aria-label="Reopen topic"
+                                                      icon={<RotateCcw size={14} />}
+                                                      size="xs"
+                                                      colorScheme="orange"
+                                                      variant="ghost"
+                                                      onClick={() =>
+                                                        handleReopenTopic(topic.order)
+                                                      }
+                                                      isLoading={
+                                                        reopenTopicMutation.isPending
+                                                      }
+                                                    />
+                                                  </Tooltip>
+                                                )}
+                                              </HStack>
+                                            </HStack>
+                                          </Box>
+                                        );
+                                      })}
+                                    </VStack>
+                                  </AccordionPanel>
+                                </AccordionItem>
+                              );
+                            })}
+                          </Accordion>
+                        </VStack>
                       )}
                     </TabPanel>
                   </TabPanels>

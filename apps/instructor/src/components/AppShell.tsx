@@ -31,8 +31,10 @@ import {
   Clock,
   BookOpen,
   Package,
+  ClipboardList,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { NotificationBell } from "./NotificationBell";
 
 interface NavItem {
   label: string;
@@ -45,6 +47,7 @@ const navItems: NavItem[] = [
   { label: "Calendar", icon: <Calendar size={20} />, href: "/calendar" },
   { label: "Lessons", icon: <BookOpen size={20} />, href: "/lessons" },
   { label: "Learners", icon: <Users size={20} />, href: "/learners" },
+  { label: "Syllabus", icon: <ClipboardList size={20} />, href: "/syllabus" },
   { label: "Availability", icon: <Clock size={20} />, href: "/availability" },
   { label: "Packages", icon: <Package size={20} />, href: "/packages" },
   { label: "Settings", icon: <Settings size={20} />, href: "/settings" },
@@ -88,11 +91,12 @@ export function AppShell({ children }: AppShellProps) {
         <VStack h="full" justify="space-between">
           {/* Logo / Brand */}
           <VStack spacing={8} w="full">
-            <Box px={4} py={2}>
+            <HStack px={4} py={2} justify="space-between" w="full">
               <Text fontSize="xl" fontWeight="bold" color="primary.500">
                 Instructor
               </Text>
-            </Box>
+              <NotificationBell />
+            </HStack>
 
             {/* Navigation Items */}
             <VStack spacing={1} w="full" px={2}>
@@ -213,6 +217,7 @@ export function AppShell({ children }: AppShellProps) {
             Instructor
           </Text>
           <HStack spacing={2}>
+            <NotificationBell />
             <IconButton
               aria-label="Toggle color mode"
               icon={colorMode === "light" ? <Moon size={18} /> : <Sun size={18} />}

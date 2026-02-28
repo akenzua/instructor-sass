@@ -465,4 +465,187 @@ export const packagesApi = {
   },
 };
 
+// ============================================================================
+// Notifications
+// ============================================================================
+
+export interface AppNotification {
+  _id: string;
+  instructorId: string;
+  type: string;
+  title: string;
+  message: string;
+  link?: string;
+  lessonId?: string;
+  learnerId?: string;
+  read: boolean;
+  readAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const notificationsApi = {
+  getAll: async (opts?: { unreadOnly?: boolean; limit?: number }): Promise<AppNotification[]> => {
+    const params = new URLSearchParams();
+    if (opts?.unreadOnly) params.set("unreadOnly", "true");
+    if (opts?.limit) params.set("limit", opts.limit.toString());
+    const res = await api.get<AppNotification[]>(`/notifications?${params.toString()}`);
+    return res.data;
+  },
+
+  getUnreadCount: async (): Promise<{ count: number }> => {
+    const res = await api.get<{ count: number }>("/notifications/unread-count");
+    return res.data;
+  },
+
+  markAsRead: async (id: string): Promise<AppNotification> => {
+    const res = await api.patch<AppNotification>(`/notifications/${id}/read`);
+    return res.data;
+  },
+
+  markAllRead: async (): Promise<{ updated: number }> => {
+    const res = await api.patch<{ updated: number }>("/notifications/read-all");
+    return res.data;
+  },
+};
+
+// ============================================================================
+// Syllabus
+// ============================================================================
+
+export interface SyllabusTopic {
+  order: number;
+  title: string;
+  description?: string;
+  category: string;
+  keySkills: string[];
+}
+
+export interface SyllabusData {
+  _id: string;
+  instructorId: string;
+  name: string;
+  description?: string;
+  isDefault: boolean;
+  topics: SyllabusTopic[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TopicProgressEntry {
+  topicOrder: number;
+  status: "not-started" | "in-progress" | "completed";
+  currentScore: number;
+  attempts: number;
+  history: Array<{
+    lessonId?: string;
+    date: string;
+    score: number;
+    notes?: string;
+  }>;
+  completedAt?: string;
+}
+
+export interface LearnerProgressData {
+  _id: string;
+  learnerId: string;
+  instructorId: string;
+  syllabusId: string;
+  topicProgress: TopicProgressEntry[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LearnerProgressWithSyllabus {
+  progress: LearnerProgressData;
+  syllabus: SyllabusData;
+}
+
+export const syllabusApi = {
+  getAll: async (): Promise<SyllabusData[]> => {
+    const res = await api.get<SyllabusData[]>("/syllabus");
+    return res.data;
+  },
+
+  getDefault: async (): Promise<SyllabusData> => {
+    const res = await api.get<SyllabusData>("/syllabus/default");
+    return res.data;
+  },
+
+  getById: async (id: string): Promise<SyllabusData> => {
+    const res = await api.get<SyllabusData>(`/syllabus/${id}`);
+    return res.data;
+  },
+
+  create: async (data: {
+    name: string;
+    description?: string;
+    isDefault?: boolean;
+    topics: SyllabusTopic[];
+  }): Promise<SyllabusData> => {
+    const res = await api.post<SyllabusData>("/syllabus", data);
+    return res.data;
+  },
+
+  update: async (
+    id: string,
+    data: Partial<{
+      name: string;
+      description?: string;
+      isDefault?: boolean;
+      topics: SyllabusTopic[];
+    }>,
+  ): Promise<SyllabusData> => {
+    const res = await api.put<SyllabusData>(`/syllabus/${id}`, data);
+    return res.data;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/syllabus/${id}`);
+  },
+
+  // Progress
+  initProgress: async (data: {
+    learnerId: string;
+    syllabusId?: string;
+  }): Promise<LearnerProgressData> => {
+    const res = await api.post<LearnerProgressData>("/syllabus/progress/init", data);
+    return res.data;
+  },
+
+  getProgress: async (learnerId: string): Promise<LearnerProgressWithSyllabus | null> => {
+    const res = await api.get<LearnerProgressWithSyllabus | null>(
+      `/syllabus/progress/learner/${learnerId}`,
+    );
+    return res.data;
+  },
+
+  scoreTopic: async (data: {
+    lessonId: string;
+    learnerId: string;
+    topicOrder: number;
+    score: number;
+    notes?: string;
+  }): Promise<LearnerProgressData> => {
+    const res = await api.post<LearnerProgressData>("/syllabus/progress/score", data);
+    return res.data;
+  },
+
+  completeTopic: async (data: {
+    learnerId: string;
+    topicOrder: number;
+  }): Promise<LearnerProgressData> => {
+    const res = await api.post<LearnerProgressData>("/syllabus/progress/complete", data);
+    return res.data;
+  },
+
+  reopenTopic: async (data: {
+    learnerId: string;
+    topicOrder: number;
+  }): Promise<LearnerProgressData> => {
+    const res = await api.post<LearnerProgressData>("/syllabus/progress/reopen", data);
+    return res.data;
+  },
+};
+
 export default api;

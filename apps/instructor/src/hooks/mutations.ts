@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { lessonsApi, learnersApi, paymentsApi, availabilityApi, packagesApi, instructorApi, type UpdateInstructorData } from "@/lib/api";
+import { lessonsApi, learnersApi, paymentsApi, availabilityApi, packagesApi, instructorApi, syllabusApi, notificationsApi, type UpdateInstructorData } from "@/lib/api";
 import type { Lesson, Learner, CreateLesson, CreateLearner } from "@acme/shared";
 
 // Lesson mutations
@@ -217,5 +217,108 @@ export function useUpdateInstructor() {
 export function useCheckUsername() {
   return useMutation({
     mutationFn: (username: string) => instructorApi.checkUsername(username),
+  });
+}
+
+// Syllabus mutations
+export function useCreateSyllabus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Parameters<typeof syllabusApi.create>[0]) => syllabusApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["syllabuses"] });
+      queryClient.invalidateQueries({ queryKey: ["syllabus"] });
+    },
+  });
+}
+
+export function useUpdateSyllabus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof syllabusApi.update>[1] }) =>
+      syllabusApi.update(id, data),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["syllabuses"] });
+      queryClient.invalidateQueries({ queryKey: ["syllabus", id] });
+      queryClient.invalidateQueries({ queryKey: ["syllabus", "default"] });
+    },
+  });
+}
+
+export function useDeleteSyllabus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => syllabusApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["syllabuses"] });
+      queryClient.invalidateQueries({ queryKey: ["syllabus"] });
+    },
+  });
+}
+
+export function useInitProgress() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { learnerId: string; syllabusId?: string }) =>
+      syllabusApi.initProgress(data),
+    onSuccess: (_, { learnerId }) => {
+      queryClient.invalidateQueries({ queryKey: ["learner-progress", learnerId] });
+    },
+  });
+}
+
+export function useScoreTopic() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Parameters<typeof syllabusApi.scoreTopic>[0]) =>
+      syllabusApi.scoreTopic(data),
+    onSuccess: (_, { learnerId, lessonId }) => {
+      queryClient.invalidateQueries({ queryKey: ["learner-progress", learnerId] });
+      queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
+      queryClient.invalidateQueries({ queryKey: ["lessons"] });
+    },
+  });
+}
+
+export function useCompleteTopic() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { learnerId: string; topicOrder: number }) =>
+      syllabusApi.completeTopic(data),
+    onSuccess: (_, { learnerId }) => {
+      queryClient.invalidateQueries({ queryKey: ["learner-progress", learnerId] });
+    },
+  });
+}
+
+export function useReopenTopic() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { learnerId: string; topicOrder: number }) =>
+      syllabusApi.reopenTopic(data),
+    onSuccess: (_, { learnerId }) => {
+      queryClient.invalidateQueries({ queryKey: ["learner-progress", learnerId] });
+    },
+  });
+}
+
+// Notification mutations
+export function useMarkNotificationRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => notificationsApi.markAsRead(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => notificationsApi.markAllRead(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
   });
 }

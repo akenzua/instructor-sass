@@ -924,6 +924,136 @@ async function seed() {
 
   console.log('📅 Created weekly availability');
 
+  // ============================================================================
+  // Seed default DVSA syllabus + learner progress
+  // ============================================================================
+
+  const SyllabusModel = mongoose.model(
+    'Syllabus',
+    new mongoose.Schema(
+      {
+        instructorId: mongoose.Schema.Types.ObjectId,
+        name: String,
+        description: String,
+        isDefault: Boolean,
+        topics: [
+          {
+            order: Number,
+            title: String,
+            description: String,
+            category: String,
+            keySkills: [String],
+          },
+        ],
+      },
+      { timestamps: true },
+    ),
+  );
+
+  const LearnerProgressModel = mongoose.model(
+    'LearnerProgress',
+    new mongoose.Schema(
+      {
+        learnerId: mongoose.Schema.Types.ObjectId,
+        instructorId: mongoose.Schema.Types.ObjectId,
+        syllabusId: mongoose.Schema.Types.ObjectId,
+        topicProgress: [
+          {
+            topicOrder: Number,
+            status: { type: String, default: 'not-started' },
+            currentScore: { type: Number, default: 0 },
+            attempts: { type: Number, default: 0 },
+            history: [
+              {
+                lessonId: mongoose.Schema.Types.ObjectId,
+                date: Date,
+                score: Number,
+                notes: String,
+              },
+            ],
+            completedAt: Date,
+          },
+        ],
+      },
+      { timestamps: true },
+    ),
+  );
+
+  // Clear existing syllabus and progress
+  await SyllabusModel.deleteMany({});
+  await LearnerProgressModel.deleteMany({});
+
+  // Import and seed the default syllabus
+  const { DEFAULT_DVSA_SYLLABUS } = await import('../modules/syllabus/default-syllabus');
+
+  const syllabus = await SyllabusModel.create({
+    ...DEFAULT_DVSA_SYLLABUS,
+    instructorId: instructor._id,
+    isDefault: true,
+  });
+  console.log(`📋 Created DVSA syllabus with ${syllabus.topics.length} topics`);
+
+  // Create progress for each learner with some realistic scores
+  const allLearners = await Learner.find({ instructorId: instructor._id });
+  for (const learner of allLearners) {
+    // Simulate varied progress: first learner more advanced, others less
+    const learnerIdx = allLearners.indexOf(learner);
+    const topicsCompleted = Math.max(0, Math.floor((37 - learnerIdx * 10) * 0.5));
+
+    const topicProgress = syllabus.topics.map((t: any) => {
+      const order = t.order;
+      if (order <= topicsCompleted) {
+        // Completed topics
+        return {
+          topicOrder: order,
+          status: 'completed',
+          currentScore: 4 + Math.floor(Math.random() * 2), // 4 or 5
+          attempts: 1 + Math.floor(Math.random() * 3),
+          history: [
+            {
+              date: new Date(Date.now() - (37 - order) * 7 * 86400000),
+              score: 4 + Math.floor(Math.random() * 2),
+              notes: 'Good progress',
+            },
+          ],
+          completedAt: new Date(Date.now() - (37 - order) * 7 * 86400000),
+        };
+      } else if (order <= topicsCompleted + 2) {
+        // In-progress topics (next 2)
+        return {
+          topicOrder: order,
+          status: 'in-progress',
+          currentScore: 2 + Math.floor(Math.random() * 2), // 2 or 3
+          attempts: 1 + Math.floor(Math.random() * 2),
+          history: [
+            {
+              date: new Date(Date.now() - 3 * 86400000),
+              score: 2 + Math.floor(Math.random() * 2),
+              notes: 'Needs more practice',
+            },
+          ],
+        };
+      } else {
+        // Not started
+        return {
+          topicOrder: order,
+          status: 'not-started',
+          currentScore: 0,
+          attempts: 0,
+          history: [],
+        };
+      }
+    });
+
+    await LearnerProgressModel.create({
+      learnerId: learner._id,
+      instructorId: instructor._id,
+      syllabusId: syllabus._id,
+      topicProgress,
+    });
+  }
+  console.log(`📊 Created progress records for ${allLearners.length} learners`);
+
   await mongoose.disconnect();
   console.log('✅ Seed completed!');
   console.log('\n📧 Login credentials:');

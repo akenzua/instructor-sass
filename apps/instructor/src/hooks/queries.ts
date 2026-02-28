@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { lessonsApi, learnersApi, availabilityApi, packagesApi } from "@/lib/api";
+import { lessonsApi, learnersApi, availabilityApi, packagesApi, syllabusApi, notificationsApi } from "@/lib/api";
 import type { LessonQuery } from "@acme/shared";
 
 export function useLessons(params?: LessonQuery) {
@@ -92,5 +92,53 @@ export function usePackage(id: string) {
     queryKey: ["package", id],
     queryFn: () => packagesApi.getById(id),
     enabled: !!id,
+  });
+}
+
+// Syllabus queries
+export function useSyllabuses() {
+  return useQuery({
+    queryKey: ["syllabuses"],
+    queryFn: () => syllabusApi.getAll(),
+  });
+}
+
+export function useDefaultSyllabus() {
+  return useQuery({
+    queryKey: ["syllabus", "default"],
+    queryFn: () => syllabusApi.getDefault(),
+  });
+}
+
+export function useSyllabus(id: string) {
+  return useQuery({
+    queryKey: ["syllabus", id],
+    queryFn: () => syllabusApi.getById(id),
+    enabled: !!id,
+  });
+}
+
+export function useLearnerProgress(learnerId: string) {
+  return useQuery({
+    queryKey: ["learner-progress", learnerId],
+    queryFn: () => syllabusApi.getProgress(learnerId),
+    enabled: !!learnerId,
+  });
+}
+
+// Notification queries
+export function useNotifications(opts?: { unreadOnly?: boolean; limit?: number }) {
+  return useQuery({
+    queryKey: ["notifications", opts],
+    queryFn: () => notificationsApi.getAll(opts),
+    refetchInterval: 30_000, // poll every 30 seconds
+  });
+}
+
+export function useUnreadNotificationCount() {
+  return useQuery({
+    queryKey: ["notifications", "unread-count"],
+    queryFn: () => notificationsApi.getUnreadCount(),
+    refetchInterval: 30_000,
   });
 }

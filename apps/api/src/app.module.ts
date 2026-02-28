@@ -14,6 +14,8 @@ import { PublicModule } from "./modules/public/public.module";
 import { SearchModule } from "./modules/search/search.module";
 import { RemindersModule } from "./modules/reminders/reminders.module";
 import { CalendarModule } from "./modules/calendar/calendar.module";
+import { SyllabusModule } from "./modules/syllabus/syllabus.module";
+import { NotificationsModule } from "./modules/notifications/notifications.module";
 
 @Module({
   imports: [
@@ -41,6 +43,8 @@ import { CalendarModule } from "./modules/calendar/calendar.module";
     SearchModule,
     RemindersModule,
     CalendarModule,
+    SyllabusModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

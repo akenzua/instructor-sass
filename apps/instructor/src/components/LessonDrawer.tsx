@@ -26,13 +26,30 @@ import {
   Textarea,
   FormControl,
   FormLabel,
+  Select,
+  Radio,
+  RadioGroup,
+  Stack,
+  Accordion,
+  AccordionItem,
+  AccordionButton,
+  AccordionIcon,
+  AccordionPanel,
 } from "@chakra-ui/react";
-import { Calendar, Clock, MapPin, User, DollarSign, FileText } from "lucide-react";
+import { Calendar, Clock, MapPin, User, PoundSterling, FileText, BookOpen } from "lucide-react";
 import { format } from "date-fns";
-import { useRef, useState } from "react";
+import { useRef, useState, useMemo } from "react";
 import type { Lesson } from "@acme/shared";
-import { useCancelLesson, useCompleteLesson } from "@/hooks";
+import { useCancelLesson, useCompleteLesson, useLearnerProgress, useScoreTopic } from "@/hooks";
 import { StatusBadge } from "@acme/ui";
+
+const SCORE_LABELS: Record<number, { label: string; color: string }> = {
+  1: { label: "Introduced", color: "red" },
+  2: { label: "Developing", color: "orange" },
+  3: { label: "Consolidating", color: "yellow" },
+  4: { label: "Competent", color: "blue" },
+  5: { label: "Independent", color: "green" },
+};
 
 interface LessonDrawerProps {
   lesson: Lesson | null;
@@ -43,11 +60,52 @@ interface LessonDrawerProps {
 export function LessonDrawer({ lesson, isOpen, onClose }: LessonDrawerProps) {
   const toast = useToast();
   const cancelDialog = useDisclosure();
+  const completeDialog = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const completeRef = useRef<HTMLButtonElement>(null);
   const [cancelReason, setCancelReason] = useState("");
+
+  // Scoring state
+  const [selectedTopicOrder, setSelectedTopicOrder] = useState<number | null>(null);
+  const [topicScore, setTopicScore] = useState<string>("");
+  const [topicNotes, setTopicNotes] = useState("");
 
   const cancelMutation = useCancelLesson();
   const completeMutation = useCompleteLesson();
+  const scoreMutation = useScoreTopic();
+
+  // Get learner progress for topic selection
+  const learnerId = lesson?.learnerId || (lesson?.learner as any)?._id || "";
+  const { data: progressData } = useLearnerProgress(learnerId);
+
+  // Build topic options from syllabus
+  const topicOptions = useMemo(() => {
+    if (!progressData?.syllabus?.topics) return [];
+    return progressData.syllabus.topics
+      .sort((a, b) => a.order - b.order)
+      .map((topic) => {
+        const tp = progressData.progress?.topicProgress?.find(
+          (p) => p.topicOrder === topic.order,
+        );
+        return {
+          order: topic.order,
+          title: topic.title,
+          category: topic.category,
+          status: tp?.status || "not-started",
+          currentScore: tp?.currentScore || 0,
+        };
+      });
+  }, [progressData]);
+
+  // Group topics by category for the dropdown/accordion
+  const categorizedTopics = useMemo(() => {
+    const groups: Record<string, typeof topicOptions> = {};
+    for (const topic of topicOptions) {
+      if (!groups[topic.category]) groups[topic.category] = [];
+      groups[topic.category].push(topic);
+    }
+    return Object.entries(groups);
+  }, [topicOptions]);
 
   if (!lesson) return null;
 
@@ -75,14 +133,35 @@ export function LessonDrawer({ lesson, isOpen, onClose }: LessonDrawerProps) {
     }
   };
 
-  const handleComplete = async () => {
+  const handleCompleteWithScore = async () => {
     try {
+      // First score the topic if one is selected
+      if (selectedTopicOrder && topicScore && learnerId) {
+        await scoreMutation.mutateAsync({
+          lessonId: lesson._id,
+          learnerId,
+          topicOrder: selectedTopicOrder,
+          score: parseInt(topicScore),
+          notes: topicNotes || undefined,
+        });
+      }
+
+      // Then mark lesson as complete
       await completeMutation.mutateAsync(lesson._id);
       toast({
-        title: "Lesson marked as complete",
+        title: "Lesson completed",
+        description: selectedTopicOrder
+          ? `Scored topic #${selectedTopicOrder}: ${topicScore}/5`
+          : "Lesson marked as complete",
         status: "success",
         duration: 3000,
       });
+
+      // Reset state
+      setSelectedTopicOrder(null);
+      setTopicScore("");
+      setTopicNotes("");
+      completeDialog.onClose();
       onClose();
     } catch (error) {
       toast({
@@ -92,6 +171,12 @@ export function LessonDrawer({ lesson, isOpen, onClose }: LessonDrawerProps) {
         duration: 5000,
       });
     }
+  };
+
+  const handleComplete = () => {
+    // Always show the complete dialog with scoring option
+    // Progress will be auto-initialised by the API if needed
+    completeDialog.onOpen();
   };
 
   const getPaymentStatusColor = (status: string) => {
@@ -108,9 +193,9 @@ export function LessonDrawer({ lesson, isOpen, onClose }: LessonDrawerProps) {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat("en-GB", {
       style: "currency",
-      currency: "USD",
+      currency: "GBP",
     }).format(amount);
   };
 
@@ -201,7 +286,7 @@ export function LessonDrawer({ lesson, isOpen, onClose }: LessonDrawerProps) {
               <Divider />
               <Box>
                 <HStack spacing={2} color="text.muted" mb={2}>
-                  <DollarSign size={16} />
+                  <PoundSterling size={16} />
                   <Text fontSize="sm" fontWeight="medium">
                     Price
                   </Text>
@@ -210,6 +295,49 @@ export function LessonDrawer({ lesson, isOpen, onClose }: LessonDrawerProps) {
                   {formatCurrency(lesson.price)}
                 </Text>
               </Box>
+
+              {/* Topic Covered (if already scored) */}
+              {(lesson as any).topicTitle && (
+                <>
+                  <Divider />
+                  <Box>
+                    <HStack spacing={2} color="text.muted" mb={2}>
+                      <BookOpen size={16} />
+                      <Text fontSize="sm" fontWeight="medium">
+                        Topic Covered
+                      </Text>
+                    </HStack>
+                    <HStack spacing={2}>
+                      <Badge colorScheme="purple" fontSize="sm">
+                        #{(lesson as any).topicOrder}
+                      </Badge>
+                      <Text fontSize="md">{(lesson as any).topicTitle}</Text>
+                    </HStack>
+                    {(lesson as any).topicScore > 0 && (
+                      <HStack spacing={2} mt={1}>
+                        <Text fontSize="sm" color="text.muted">
+                          Score:
+                        </Text>
+                        <Badge
+                          colorScheme={
+                            SCORE_LABELS[(lesson as any).topicScore]?.color || "gray"
+                          }
+                          variant="solid"
+                          fontSize="sm"
+                        >
+                          {(lesson as any).topicScore} –{" "}
+                          {SCORE_LABELS[(lesson as any).topicScore]?.label}
+                        </Badge>
+                      </HStack>
+                    )}
+                    {(lesson as any).topicNotes && (
+                      <Text fontSize="sm" color="text.muted" mt={1}>
+                        {(lesson as any).topicNotes}
+                      </Text>
+                    )}
+                  </Box>
+                </>
+              )}
 
               {/* Notes */}
               {lesson.notes && (
@@ -305,6 +433,152 @@ export function LessonDrawer({ lesson, isOpen, onClose }: LessonDrawerProps) {
                 isLoading={cancelMutation.isPending}
               >
                 Cancel Lesson
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
+      {/* Complete & Score Dialog */}
+      <AlertDialog
+        isOpen={completeDialog.isOpen}
+        leastDestructiveRef={completeRef}
+        onClose={() => {
+          completeDialog.onClose();
+          setSelectedTopicOrder(null);
+          setTopicScore("");
+          setTopicNotes("");
+        }}
+        size="lg"
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent maxW="600px">
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              <HStack spacing={2}>
+                <BookOpen size={20} />
+                <Text>Complete Lesson & Score Topic</Text>
+              </HStack>
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              <VStack spacing={5} align="stretch">
+                <Text fontSize="sm" color="text.muted">
+                  Select the topic covered in this lesson and score the learner.
+                  This is optional — you can complete the lesson without scoring.
+                </Text>
+
+                {/* Topic Selection */}
+                <FormControl>
+                  <FormLabel fontSize="sm" fontWeight="medium">
+                    Topic Covered
+                  </FormLabel>
+                  {categorizedTopics.length > 0 ? (
+                    <Select
+                      placeholder="Select a topic (optional)"
+                      value={selectedTopicOrder?.toString() || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSelectedTopicOrder(val ? parseInt(val) : null);
+                        if (!val) {
+                          setTopicScore("");
+                          setTopicNotes("");
+                        }
+                      }}
+                      size="sm"
+                    >
+                      {categorizedTopics.map(([category, topics]) => (
+                        <optgroup key={category} label={category}>
+                          {topics.map((topic) => (
+                            <option key={topic.order} value={topic.order}>
+                              #{topic.order} {topic.title}
+                              {topic.status === "completed"
+                                ? " ✓"
+                                : topic.currentScore > 0
+                                ? ` (${topic.currentScore}/5)`
+                                : ""}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </Select>
+                  ) : (
+                    <Text fontSize="sm" color="text.muted" fontStyle="italic">
+                      Loading syllabus topics…
+                    </Text>
+                  )}
+                </FormControl>
+
+                {/* Score Selection */}
+                {selectedTopicOrder && (
+                  <>
+                    <FormControl>
+                      <FormLabel fontSize="sm" fontWeight="medium">
+                        Score
+                      </FormLabel>
+                      <RadioGroup
+                        value={topicScore}
+                        onChange={setTopicScore}
+                      >
+                        <Stack spacing={2}>
+                          {Object.entries(SCORE_LABELS).map(
+                            ([score, { label, color }]) => (
+                              <Radio key={score} value={score} colorScheme={color}>
+                                <HStack spacing={2}>
+                                  <Badge
+                                    colorScheme={color}
+                                    variant="solid"
+                                    fontSize="xs"
+                                    minW="20px"
+                                    textAlign="center"
+                                  >
+                                    {score}
+                                  </Badge>
+                                  <Text fontSize="sm">{label}</Text>
+                                </HStack>
+                              </Radio>
+                            ),
+                          )}
+                        </Stack>
+                      </RadioGroup>
+                    </FormControl>
+
+                    <FormControl>
+                      <FormLabel fontSize="sm" fontWeight="medium">
+                        Notes (optional)
+                      </FormLabel>
+                      <Textarea
+                        placeholder="How did the learner perform? Any areas to focus on next time..."
+                        value={topicNotes}
+                        onChange={(e) => setTopicNotes(e.target.value)}
+                        size="sm"
+                        rows={3}
+                      />
+                    </FormControl>
+                  </>
+                )}
+              </VStack>
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button
+                ref={completeRef}
+                onClick={() => {
+                  completeDialog.onClose();
+                  setSelectedTopicOrder(null);
+                  setTopicScore("");
+                  setTopicNotes("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                colorScheme="green"
+                onClick={handleCompleteWithScore}
+                ml={3}
+                isLoading={completeMutation.isPending || scoreMutation.isPending}
+                isDisabled={selectedTopicOrder != null && !topicScore}
+              >
+                {selectedTopicOrder ? "Complete & Score" : "Complete Lesson"}
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
