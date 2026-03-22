@@ -2,9 +2,10 @@
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@acme/ui', '@acme/theme', '@acme/shared'],
-
-  // Enable static exports for better caching
-  // output: 'standalone',
+  output: 'standalone',
+  experimental: {
+    outputFileTracingRoot: require('path').join(__dirname, '../../'),
+  },
 
   // Image optimization
   images: {

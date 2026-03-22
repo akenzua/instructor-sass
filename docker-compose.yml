@@ -1,0 +1,249 @@
+version: "3.9"
+
+services:
+  # ── MongoDB ───────────────────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: instructor-saas
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh --quiet --username $${MONGO_INITDB_ROOT_USERNAME} --password $${MONGO_INITDB_ROOT_PASSWORD} --authenticationDatabase admin
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── NestJS API ────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    profiles: [prod]
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/instructor-saas?authSource=admin
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: 7d
+      SMTP_HOST: mailhog
+      SMTP_PORT: "1025"
+      SMTP_USER: ""
+      SMTP_PASS: ""
+      SMTP_FROM: noreply@instructor-saas.local
+      APP_NAME: Instructor SaaS
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+  # ── Instructor Dashboard (Next.js) ───────────────────────────────
+  instructor:
+    build:
+      context: .
+      dockerfile: apps/instructor/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3000/api
+    profiles: [prod]
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      API_URL: http://api:3000
+    depends_on:
+      - api
+
+  # ── Learner App (Next.js) ────────────────────────────────────────
+  learner:
+    build:
+      context: .
+      dockerfile: apps/learner/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3000/api
+        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_IDEAL_POSTCODES_API_KEY: ${IDEAL_POSTCODES_API_KEY}
+    profiles: [prod]
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      NODE_ENV: production
+      API_URL: http://api:3000
+    depends_on:
+      - api
+
+  # ── Public Site (Next.js) ────────────────────────────────────────
+  public:
+    build:
+      context: .
+      dockerfile: apps/public/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3000/api
+        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_IDEAL_POSTCODES_API_KEY: ${IDEAL_POSTCODES_API_KEY}
+    profiles: [prod]
+    restart: unless-stopped
+    ports:
+      - "3004:3004"
+    environment:
+      NODE_ENV: production
+      API_URL: http://api:3000
+    depends_on:
+      - api
+
+  # ── Seed (one-off, run with: docker compose --profile seed run seed)
+  seed:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: build
+    profiles:
+      - seed
+    environment:
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/instructor-saas?authSource=admin
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    command: ["node", "apps/api/dist/seeds/seed.js"]
+    working_dir: /app
+
+  # ── MailHog (local email testing) ─────────────────────────────────
+  mailhog:
+    image: mailhog/mailhog:latest
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+
+  # ── Dev services (docker compose --profile dev up) ─────────────
+  api-dev:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: dev
+    profiles: [dev]
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - api_dev_node_modules:/app/node_modules
+      - api_dev_app_node_modules:/app/apps/api/node_modules
+      - api_dev_shared_node_modules:/app/packages/shared/node_modules
+    environment:
+      NODE_ENV: development
+      PORT: "3000"
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/instructor-saas?authSource=admin
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: 7d
+      SMTP_HOST: mailhog
+      SMTP_PORT: "1025"
+      SMTP_USER: ""
+      SMTP_PASS: ""
+      SMTP_FROM: noreply@instructor-saas.local
+      APP_NAME: Instructor SaaS
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+  instructor-dev:
+    build:
+      context: .
+      dockerfile: apps/instructor/Dockerfile
+      target: dev
+    profiles: [dev]
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - .:/app
+      - instructor_dev_node_modules:/app/node_modules
+      - instructor_dev_app_node_modules:/app/apps/instructor/node_modules
+      - instructor_dev_shared_node_modules:/app/packages/shared/node_modules
+      - instructor_dev_theme_node_modules:/app/packages/theme/node_modules
+      - instructor_dev_ui_node_modules:/app/packages/ui/node_modules
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:3000/api
+    depends_on:
+      - api-dev
+
+  learner-dev:
+    build:
+      context: .
+      dockerfile: apps/learner/Dockerfile
+      target: dev
+    profiles: [dev]
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    volumes:
+      - .:/app
+      - learner_dev_node_modules:/app/node_modules
+      - learner_dev_app_node_modules:/app/apps/learner/node_modules
+      - learner_dev_shared_node_modules:/app/packages/shared/node_modules
+      - learner_dev_theme_node_modules:/app/packages/theme/node_modules
+      - learner_dev_ui_node_modules:/app/packages/ui/node_modules
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:3000/api
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
+      NEXT_PUBLIC_IDEAL_POSTCODES_API_KEY: ${IDEAL_POSTCODES_API_KEY}
+    depends_on:
+      - api-dev
+
+  public-dev:
+    build:
+      context: .
+      dockerfile: apps/public/Dockerfile
+      target: dev
+    profiles: [dev]
+    restart: unless-stopped
+    ports:
+      - "3004:3004"
+    volumes:
+      - .:/app
+      - public_dev_node_modules:/app/node_modules
+      - public_dev_app_node_modules:/app/apps/public/node_modules
+      - public_dev_shared_node_modules:/app/packages/shared/node_modules
+      - public_dev_theme_node_modules:/app/packages/theme/node_modules
+      - public_dev_ui_node_modules:/app/packages/ui/node_modules
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:3000/api
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
+      NEXT_PUBLIC_IDEAL_POSTCODES_API_KEY: ${IDEAL_POSTCODES_API_KEY}
+    depends_on:
+      - api-dev
+
+volumes:
+  mongodb_data:
+  api_dev_node_modules:
+  api_dev_app_node_modules:
+  api_dev_shared_node_modules:
+  instructor_dev_node_modules:
+  instructor_dev_app_node_modules:
+  instructor_dev_shared_node_modules:
+  instructor_dev_theme_node_modules:
+  instructor_dev_ui_node_modules:
+  learner_dev_node_modules:
+  learner_dev_app_node_modules:
+  learner_dev_shared_node_modules:
+  learner_dev_theme_node_modules:
+  learner_dev_ui_node_modules:
+  public_dev_node_modules:
+  public_dev_app_node_modules:
+  public_dev_shared_node_modules:
+  public_dev_theme_node_modules:
+  public_dev_ui_node_modules:

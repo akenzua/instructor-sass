@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, Button, Card, CardBody, Heading, Text, VStack } from "@chakra-ui/react";
+import { Box, Card, CardBody, Heading, Text, VStack } from "@chakra-ui/react";
 import { ReactNode } from "react";
 
 interface AuthLayoutProps {

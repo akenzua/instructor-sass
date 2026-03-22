@@ -16,6 +16,7 @@ import { RemindersModule } from "./modules/reminders/reminders.module";
 import { CalendarModule } from "./modules/calendar/calendar.module";
 import { SyllabusModule } from "./modules/syllabus/syllabus.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
+import { HealthController } from "./health.controller";
 
 @Module({
   imports: [
@@ -46,5 +47,6 @@ import { NotificationsModule } from "./modules/notifications/notifications.modul
     SyllabusModule,
     NotificationsModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

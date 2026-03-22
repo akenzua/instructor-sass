@@ -30,11 +30,6 @@ import {
   Radio,
   RadioGroup,
   Stack,
-  Accordion,
-  AccordionItem,
-  AccordionButton,
-  AccordionIcon,
-  AccordionPanel,
 } from "@chakra-ui/react";
 import { Calendar, Clock, MapPin, User, PoundSterling, FileText, BookOpen } from "lucide-react";
 import { format } from "date-fns";

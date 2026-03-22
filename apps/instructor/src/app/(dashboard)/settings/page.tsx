@@ -52,7 +52,6 @@ import {
   DollarSign,
   Plus,
   Trash2,
-  Edit2,
   Shield,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";

@@ -209,6 +209,7 @@ export default async function Page({ params }: PageProps) {
       />
 
       {/* Client Component with all the interactive UI */}
+      <p>Likelihood of dancing !</p>
       <InstructorPage
         instructor={instructor}
         availability={availability}

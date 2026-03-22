@@ -89,26 +89,6 @@ function formatPrice(amount: number, currency = "GBP") {
   }).format(amount);
 }
 
-// ─── Day helpers for availability display ───────────────────────
-const DAY_ORDER = [
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-  "sunday",
-];
-const DAY_ABBREV: Record<string, string> = {
-  monday: "Mon",
-  tuesday: "Tue",
-  wednesday: "Wed",
-  thursday: "Thu",
-  friday: "Fri",
-  saturday: "Sat",
-  sunday: "Sun",
-};
-
 // ─── Package Card ───────────────────────────────────────────────
 function PackageCard({
   pkg,
@@ -219,7 +199,6 @@ export default function BookingPage() {
   }, [authLoading, isAuthenticated, router]);
 
   const instructor = availabilityData?.instructor;
-  const weeklyAvailability = availabilityData?.weeklyAvailability || [];
   const unscheduledLessons = availabilityData?.unscheduledLessons || 0;
   const needsInstructor = availabilityData?.needsInstructor ?? false;
   const allInstructors = availabilityData?.allInstructors || [];
@@ -527,11 +506,6 @@ export default function BookingPage() {
                 >
                   {allInstructors.map((ai) => {
                     const isActive = instructor?._id === ai.instructorId;
-                    const sortedAvail = [...weeklyAvailability].sort(
-                      (a, b) =>
-                        DAY_ORDER.indexOf(a.dayOfWeek) -
-                        DAY_ORDER.indexOf(b.dayOfWeek),
-                    );
 
                     return (
                       <AccordionItem

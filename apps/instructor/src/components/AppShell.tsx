@@ -17,7 +17,6 @@ import {
   MenuDivider,
   useColorMode,
   useColorModeValue,
-  Tooltip,
 } from "@chakra-ui/react";
 import {
   Home,

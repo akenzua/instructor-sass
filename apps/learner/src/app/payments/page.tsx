@@ -131,7 +131,7 @@ export default function PaymentsPage() {
         <VStack spacing={6} align="stretch">
           <PageHeader
             title="Payment History"
-            subtitle="View all your past payments"
+            description="View all your past payments"
             actions={
               <Button
                 colorScheme="primary"

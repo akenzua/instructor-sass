@@ -1,0 +1,17 @@
+node_modules
+.next
+dist
+.git
+.gitignore
+*.md
+.env*
+.turbo
+.changeset
+.vscode
+coverage
+.nyc_output
+*.log
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+storybook-static

@@ -31,7 +31,6 @@ import {
   useToast,
   VStack,
   Badge,
-  Divider,
 } from "@chakra-ui/react";
 import { Plus, Trash2, Save, Calendar, X } from "lucide-react";
 import { PageHeader } from "@acme/ui";

@@ -44,7 +44,6 @@ import {
   TabPanel,
   TabPanels,
   Tabs,
-  Tag,
   Text,
   Textarea,
   Tooltip,
@@ -54,7 +53,6 @@ import {
   useDisclosure,
   useToast,
   Badge,
-  Divider,
 } from "@chakra-ui/react";
 import {
   ArrowLeft,

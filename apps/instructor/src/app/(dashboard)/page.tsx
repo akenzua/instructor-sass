@@ -10,7 +10,6 @@ import {
   HStack,
   SimpleGrid,
   Skeleton,
-  SkeletonText,
   Text,
   VStack,
   Badge,
@@ -22,7 +21,6 @@ import {
   Th,
   Td,
   Progress,
-  Tooltip,
   Icon,
 } from '@chakra-ui/react';
 import {
@@ -178,9 +176,10 @@ export default function DashboardPage() {
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis yAxisId="left" tick={{ fontSize: 11 }} tickFormatter={(v) => `£${v}`} />
                   <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                   <RechartsTooltip
-                    formatter={(value: number, name: string) => [
-                      name === 'Earnings' ? formatGBP(value) : `${value} lessons`,
+                    formatter={(value: any, name: any) => [
+                      name === 'Earnings' ? formatGBP(value ?? 0) : `${value ?? 0} lessons`,
                       name,
                     ]}
                   />
@@ -347,8 +346,9 @@ export default function DashboardPage() {
                           />
                         ))}
                       </Pie>
+                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                       <RechartsTooltip
-                        formatter={(value: number, name: string) => [`${value} lessons`, name]}
+                        formatter={(value: any, name: any) => [`${value ?? 0} lessons`, name]}
                       />
                       <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
                     </PieChart>

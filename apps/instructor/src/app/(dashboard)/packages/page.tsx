@@ -41,7 +41,6 @@ import { PageHeader } from "@acme/ui";
 import { usePackages } from "@/hooks";
 import { useCreatePackage, useUpdatePackage, useDeletePackage } from "@/hooks/mutations";
 import type { Package } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
 
 interface PackageFormData {
   name: string;
@@ -65,9 +64,8 @@ export default function PackagesPage() {
   const toast = useToast();
   const modal = useDisclosure();
   const deleteModal = useDisclosure();
-  const { instructor } = useAuth();
 
-  const { data: packages, isLoading: packagesLoading, error: packagesError } = usePackages();
+  const { data: packages, isLoading: packagesLoading } = usePackages();
   const createMutation = useCreatePackage();
   const updateMutation = useUpdatePackage();
   const deleteMutation = useDeletePackage();

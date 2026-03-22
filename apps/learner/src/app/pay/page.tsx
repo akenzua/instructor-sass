@@ -34,12 +34,10 @@ import { authApi, paymentsApi } from '@/lib/api';
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
 
 function PaymentForm({
-  clientSecret,
   paymentIntentId,
   amount,
   onSuccess,
 }: {
-  clientSecret: string;
   paymentIntentId: string;
   amount: number;
   onSuccess: () => void;
@@ -194,7 +192,7 @@ export default function PayPage() {
       setClientSecret(data.clientSecret);
       setPaymentIntentId(data.paymentIntentId);
     },
-    onError: (error) => {
+    onError: (_error) => {
       toast({
         title: 'Error',
         description: 'Failed to initialize payment. Please try again.',
@@ -286,7 +284,6 @@ export default function PayPage() {
                   </HStack>
 
                   <PaymentForm
-                    clientSecret={clientSecret}
                     paymentIntentId={paymentIntentId!}
                     amount={
                       customAmount
