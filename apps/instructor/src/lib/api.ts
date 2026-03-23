@@ -274,6 +274,22 @@ export const learnersApi = {
   delete: async (id: string): Promise<void> => {
     await api.delete(`/learners/${id}`);
   },
+
+  getTestReadiness: async (id: string): Promise<{
+    testReadiness: string | null;
+    testReadinessComment: string | null;
+    testReadinessUpdatedAt: string | null;
+  }> => {
+    const res = await api.get(`/learners/${id}/test-readiness`);
+    return res.data;
+  },
+
+  updateTestReadiness: async (id: string, data: {
+    testReadiness: 'not-ready' | 'nearly-ready' | 'test-ready';
+    comment?: string;
+  }): Promise<void> => {
+    await api.put(`/learners/${id}/test-readiness`, data);
+  },
 };
 
 // ============================================================================

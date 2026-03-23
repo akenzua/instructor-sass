@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { authApi } from "@/lib/api";
+import { authApi, testReadinessApi } from "@/lib/api";
 
 export function useLearnerProfile(enabled: boolean) {
   const {
@@ -18,4 +18,13 @@ export function useLearnerProfile(enabled: boolean) {
   });
 
   return { profile, isLoading, error, refetch };
+}
+
+export function useTestReadiness(enabled: boolean) {
+  return useQuery({
+    queryKey: ["learner", "test-readiness"],
+    queryFn: testReadinessApi.getMyReadiness,
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  });
 }

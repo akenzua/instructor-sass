@@ -142,3 +142,11 @@ export function useUnreadNotificationCount() {
     refetchInterval: 30_000,
   });
 }
+
+export function useTestReadiness(learnerId: string) {
+  return useQuery({
+    queryKey: ["test-readiness", learnerId],
+    queryFn: () => learnersApi.getTestReadiness(learnerId),
+    enabled: !!learnerId,
+  });
+}

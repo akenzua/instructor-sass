@@ -32,6 +32,18 @@ export class LearnerInstructorLink {
   @Prop({ type: String, enum: ["active", "paused", "ended"], default: "active" })
   status: string;
 
+  /** Instructor's assessment of the learner's test readiness */
+  @Prop({ type: String, enum: ['not-ready', 'nearly-ready', 'test-ready'], default: null })
+  testReadiness?: string;
+
+  /** Optional comment about test readiness */
+  @Prop()
+  testReadinessComment?: string;
+
+  /** When test readiness was last updated */
+  @Prop()
+  testReadinessUpdatedAt?: Date;
+
   /** Notes from the instructor about this learner */
   @Prop()
   instructorNotes?: string;

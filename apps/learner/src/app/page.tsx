@@ -11,13 +11,14 @@ import {
 } from "@chakra-ui/react";
 import { PageHeader } from "@acme/ui";
 import { useLearnerAuth } from "@/lib/auth";
-import { useLearnerProfile, useUpcomingLessons } from "@/hooks";
+import { useLearnerProfile, useUpcomingLessons, useTestReadiness } from "@/hooks";
 import { AppHeader } from "@/components/AppHeader";
 import { NextLessonCard } from "@/components/NextLessonCard";
 import { UpcomingLessonsCard } from "@/components/UpcomingLessonsCard";
 import { BalanceCard } from "@/components/BalanceCard";
 import { PaymentAlert } from "@/components/PaymentAlert";
 import { QuickActionsCard } from "@/components/QuickActionsCard";
+import { TestReadinessCard } from "@/components/TestReadinessCard";
 
 export default function HomePage() {
   const router = useRouter();
@@ -36,6 +37,8 @@ export default function HomePage() {
     error: lessonsError,
     refetch: refetchLessons,
   } = useUpcomingLessons(isAuthenticated);
+
+  const { data: readinessData, isLoading: readinessLoading } = useTestReadiness(isAuthenticated);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -88,6 +91,12 @@ export default function HomePage() {
                   balance={balance}
                   hasDebt={hasDebt}
                   isLoading={profileLoading}
+                />
+                <TestReadinessCard
+                  testReadiness={readinessData?.testReadiness ?? null}
+                  testReadinessComment={readinessData?.testReadinessComment ?? null}
+                  testReadinessUpdatedAt={readinessData?.testReadinessUpdatedAt ?? null}
+                  isLoading={readinessLoading}
                 />
                 {hasDebt && <PaymentAlert />}
                 <QuickActionsCard />

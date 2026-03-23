@@ -86,6 +86,18 @@ export const authApi = {
   },
 };
 
+// Test readiness API
+export const testReadinessApi = {
+  getMyReadiness: async () => {
+    const response = await api.get('/learners/me/test-readiness');
+    return response.data as {
+      testReadiness: string | null;
+      testReadinessComment: string | null;
+      testReadinessUpdatedAt: string | null;
+    };
+  },
+};
+
 // Learner lessons API
 export const lessonsApi = {
   // Get learner's lessons

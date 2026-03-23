@@ -15,6 +15,7 @@ import {
 } from "@nestjs/common";
 import { Response } from 'express';
 import { LearnersService } from "./learners.service";
+import { LearnerLinkService } from "./learner-link.service";
 import { CreateLearnerDto, UpdateLearnerDto, LearnerQueryDto } from "./dto/learner.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { LessonsService } from "../lessons/lessons.service";
@@ -24,6 +25,7 @@ export class LearnersController {
   constructor(
     private readonly learnersService: LearnersService,
     private readonly lessonsService: LessonsService,
+    private readonly learnerLinkService: LearnerLinkService,
   ) {}
 
   // Learner's own endpoints (authenticated as learner)
@@ -60,6 +62,16 @@ export class LearnersController {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Content-Disposition', `inline; filename="receipt-${paymentId}.html"`);
     res.send(html);
+  }
+
+  // Learner's own test readiness endpoint
+  @Get("me/test-readiness")
+  @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'no-cache, no-store, must-revalidate')
+  async getMyTestReadiness(
+    @Request() req: { user: { id: string } }
+  ) {
+    return this.learnerLinkService.getTestReadinessForLearner(req.user.id);
   }
 
   // Instructor endpoints (authenticated as instructor)
@@ -103,6 +115,32 @@ export class LearnersController {
     @Query() query: LearnerQueryDto
   ) {
     return this.learnersService.findAll(req.user.id, query);
+  }
+
+  // Test readiness endpoints (instructor)
+  @Get(":id/test-readiness")
+  @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'no-cache, no-store, must-revalidate')
+  async getTestReadiness(
+    @Request() req: { user: { id: string } },
+    @Param("id") id: string
+  ) {
+    return this.learnerLinkService.getTestReadinessForInstructor(req.user.id, id);
+  }
+
+  @Put(":id/test-readiness")
+  @UseGuards(JwtAuthGuard)
+  async updateTestReadiness(
+    @Request() req: { user: { id: string } },
+    @Param("id") id: string,
+    @Body() body: { testReadiness: 'not-ready' | 'nearly-ready' | 'test-ready'; comment?: string }
+  ) {
+    return this.learnerLinkService.updateTestReadiness(
+      req.user.id,
+      id,
+      body.testReadiness,
+      body.comment
+    );
   }
 
   @Get(":id")

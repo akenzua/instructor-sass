@@ -322,3 +322,19 @@ export function useMarkAllNotificationsRead() {
     },
   });
 }
+
+// Test readiness mutations
+export function useUpdateTestReadiness() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ learnerId, testReadiness, comment }: {
+      learnerId: string;
+      testReadiness: 'not-ready' | 'nearly-ready' | 'test-ready';
+      comment?: string;
+    }) => learnersApi.updateTestReadiness(learnerId, { testReadiness, comment }),
+    onSuccess: (_, { learnerId }) => {
+      queryClient.invalidateQueries({ queryKey: ["test-readiness", learnerId] });
+      queryClient.invalidateQueries({ queryKey: ["learner", learnerId] });
+    },
+  });
+}

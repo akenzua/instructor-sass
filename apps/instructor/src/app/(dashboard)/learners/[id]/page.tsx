@@ -76,6 +76,8 @@ import {
   useLearnerProgress,
   useCompleteTopic,
   useReopenTopic,
+  useTestReadiness,
+  useUpdateTestReadiness,
 } from "@/hooks";
 import { LessonDrawer } from "@/components";
 import type { Lesson } from "@acme/shared";
@@ -141,6 +143,16 @@ export default function LearnerDetailPage() {
   const updateMutation = useUpdateLearner();
   const completeTopicMutation = useCompleteTopic();
   const reopenTopicMutation = useReopenTopic();
+  const { data: testReadinessData } = useTestReadiness(learnerId);
+  const updateTestReadinessMutation = useUpdateTestReadiness();
+  const [readinessComment, setReadinessComment] = useState("");
+
+  // Sync readiness comment when data loads
+  useEffect(() => {
+    if (testReadinessData?.testReadinessComment) {
+      setReadinessComment(testReadinessData.testReadinessComment);
+    }
+  }, [testReadinessData?.testReadinessComment]);
 
   // Auto-open lesson drawer if ?complete=lessonId is in URL (from notification)
   useEffect(() => {
@@ -468,6 +480,79 @@ export default function LearnerDetailPage() {
                             ? "Credit available"
                             : "No balance"}
                         </Text>
+                      </Box>
+
+                      {/* Test Readiness */}
+                      <Box
+                        p={4}
+                        borderWidth="1px"
+                        borderRadius="lg"
+                        borderColor="border.subtle"
+                      >
+                        <Text fontSize="sm" fontWeight="semibold" mb={3}>
+                          Test Readiness
+                        </Text>
+                        <VStack spacing={2} align="stretch">
+                          {(["not-ready", "nearly-ready", "test-ready"] as const).map((status) => {
+                            const isSelected = testReadinessData?.testReadiness === status;
+                            const config = {
+                              "not-ready": { label: "Not Ready", colorScheme: "red", emoji: "🔴" },
+                              "nearly-ready": { label: "Nearly Ready", colorScheme: "orange", emoji: "🟡" },
+                              "test-ready": { label: "Test Ready", colorScheme: "green", emoji: "🟢" },
+                            }[status];
+                            return (
+                              <Button
+                                key={status}
+                                size="sm"
+                                variant={isSelected ? "solid" : "outline"}
+                                colorScheme={config.colorScheme}
+                                justifyContent="flex-start"
+                                leftIcon={<Text>{config.emoji}</Text>}
+                                isLoading={
+                                  updateTestReadinessMutation.isPending &&
+                                  !isSelected
+                                }
+                                onClick={() => {
+                                  updateTestReadinessMutation.mutate(
+                                    {
+                                      learnerId,
+                                      testReadiness: status,
+                                      comment: readinessComment || undefined,
+                                    },
+                                    {
+                                      onSuccess: () => {
+                                        toast({
+                                          title: `Readiness set to "${config.label}"`,
+                                          status: "success",
+                                          duration: 2000,
+                                        });
+                                      },
+                                    }
+                                  );
+                                }}
+                              >
+                                {config.label}
+                              </Button>
+                            );
+                          })}
+                          <Textarea
+                            placeholder="Optional comment..."
+                            size="sm"
+                            fontSize="sm"
+                            rows={2}
+                            value={readinessComment}
+                            onChange={(e) => setReadinessComment(e.target.value)}
+                          />
+                          {testReadinessData?.testReadinessUpdatedAt && (
+                            <Text fontSize="2xs" color="text.muted">
+                              Last updated{" "}
+                              {format(
+                                new Date(testReadinessData.testReadinessUpdatedAt),
+                                "dd MMM yyyy"
+                              )}
+                            </Text>
+                          )}
+                        </VStack>
                       </Box>
 
                       <HStack spacing={2}>

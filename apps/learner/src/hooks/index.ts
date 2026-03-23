@@ -1,4 +1,4 @@
-export { useLearnerProfile } from "./useLearnerProfile";
+export { useLearnerProfile, useTestReadiness } from "./useLearnerProfile";
 export { useUpcomingLessons } from "./useUpcomingLessons";
 export { useCancellationPreview, useCancelLesson } from "./useCancelLesson";
 export {

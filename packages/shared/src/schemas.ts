@@ -154,6 +154,9 @@ export const learnerSchema = z.object({
   balance: z.number().default(0), // Negative = owes money
   totalLessons: z.number().int().default(0),
   completedLessons: z.number().int().default(0),
+  testReadiness: z.enum(['not-ready', 'nearly-ready', 'test-ready']).nullable().optional(),
+  testReadinessComment: z.string().optional(),
+  testReadinessUpdatedAt: z.string().datetime().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

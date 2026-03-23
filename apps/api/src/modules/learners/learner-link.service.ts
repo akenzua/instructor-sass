@@ -322,4 +322,72 @@ export class LearnerLinkService {
 
     return link;
   }
+
+  /**
+   * Update a learner's test readiness (instructor-only).
+   */
+  async updateTestReadiness(
+    instructorId: string,
+    learnerId: string,
+    testReadiness: 'not-ready' | 'nearly-ready' | 'test-ready',
+    comment?: string,
+  ): Promise<LearnerInstructorLinkDocument> {
+    const link = await this.linkModel.findOneAndUpdate(
+      {
+        learnerId: new Types.ObjectId(learnerId),
+        instructorId: new Types.ObjectId(instructorId),
+      },
+      {
+        $set: {
+          testReadiness,
+          testReadinessComment: comment || null,
+          testReadinessUpdatedAt: new Date(),
+        },
+      },
+      { new: true },
+    );
+
+    if (!link) {
+      throw new NotFoundException("No relationship found with this learner");
+    }
+
+    return link;
+  }
+
+  /**
+   * Get test readiness for a learner (from their primary instructor's link).
+   */
+  async getTestReadinessForLearner(learnerId: string) {
+    const learner = await this.learnerModel.findById(learnerId);
+    if (!learner) throw new NotFoundException("Learner not found");
+
+    const link = learner.instructorId
+      ? await this.linkModel.findOne({
+          learnerId: new Types.ObjectId(learnerId),
+          instructorId: learner.instructorId,
+        })
+      : null;
+
+    return {
+      testReadiness: link?.testReadiness || null,
+      testReadinessComment: link?.testReadinessComment || null,
+      testReadinessUpdatedAt: link?.testReadinessUpdatedAt || null,
+    };
+  }
+
+  /**
+   * Get test readiness for a learner from a specific instructor.
+   */
+  async getTestReadinessForInstructor(instructorId: string, learnerId: string) {
+    const link = await this.linkModel.findOne({
+      learnerId: new Types.ObjectId(learnerId),
+      instructorId: new Types.ObjectId(instructorId),
+    });
+
+    return {
+      testReadiness: link?.testReadiness || null,
+      testReadinessComment: link?.testReadinessComment || null,
+      testReadinessUpdatedAt: link?.testReadinessUpdatedAt || null,
+    };
+  }
 }
