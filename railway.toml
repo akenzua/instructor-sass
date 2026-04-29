@@ -1,0 +1,21 @@
+[build]
+# Builder is set to DOCKERFILE for all services.
+# Each service's Dockerfile path and build context must be configured
+# individually in the Railway UI (Settings → Build) since this is a monorepo:
+#
+#   api:        Dockerfile = apps/api/Dockerfile        | Context = .
+#   instructor: Dockerfile = apps/instructor/Dockerfile | Context = .
+#   learner:    Dockerfile = apps/learner/Dockerfile    | Context = .
+#   public:     Dockerfile = apps/public/Dockerfile     | Context = .
+builder = "DOCKERFILE"
+
+[deploy]
+# Restart the container automatically if it crashes (up to 10 times).
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+# Health check — the API exposes GET /health.
+# Next.js services do not expose /health but Railway will fall back
+# to checking that the process is running.
+healthcheckPath = "/health"
+healthcheckTimeout = 60
