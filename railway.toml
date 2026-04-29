@@ -17,5 +17,5 @@ restartPolicyMaxRetries = 10
 # Health check — the API exposes GET /health.
 # Next.js services do not expose /health but Railway will fall back
 # to checking that the process is running.
-healthcheckPath = "/health"
+healthcheckPath = "/api/health"
 healthcheckTimeout = 60
