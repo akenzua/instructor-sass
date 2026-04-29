@@ -116,7 +116,7 @@ export default function DashboardPage() {
   const { instructor } = useAuth();
   const router = useRouter();
   const { data: stats, isLoading } = useDashboardStats();
-  const isSchoolMember = stats?.isSchoolMember ?? !!(instructor as any)?.schoolId;
+  const isSchoolMember = !!(instructor as any)?.schoolId;
 
   // Redirect non-teaching owner/admin to school dashboard
   const inst = instructor as any;

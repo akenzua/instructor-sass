@@ -41,7 +41,6 @@ import {
   Tr,
   Th,
   Td,
-  Spinner,
 } from "@chakra-ui/react";
 import {
   Plus,
@@ -52,7 +51,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { useSyllabuses, useDefaultSyllabus } from "@/hooks";
+import { useSyllabuses } from "@/hooks";
 import { useCreateSyllabus, useUpdateSyllabus, useDeleteSyllabus } from "@/hooks";
 import type { SyllabusTopic } from "@/lib/api";
 

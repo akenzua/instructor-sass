@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
-  Box,
   Button,
   Card,
   CardBody,
@@ -19,7 +18,6 @@ import { AuthLayout } from "@/components/forms";
 
 export default function InvitationPage() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const toast = useToast();
   const token = searchParams.get("token");
   const [status, setStatus] = useState<"loading" | "needs-signup" | "accepted" | "error">("loading");

@@ -732,6 +732,7 @@ export interface SchoolDashboardData {
   completedLessons: number;
   totalRevenue: number;
   activeLearnerCount: number;
+  monthlyRevenue?: { year: number; month: number; amount: number }[];
 }
 
 export const schoolsApi = {
