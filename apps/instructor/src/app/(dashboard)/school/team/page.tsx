@@ -38,7 +38,7 @@ import {
   TabPanels,
   TabPanel,
 } from "@chakra-ui/react";
-import { Plus, Trash2, Mail, X } from "lucide-react";
+import { Trash2, Mail, X } from "lucide-react";
 import { useState } from "react";
 import { useMySchool, useSchoolInstructors, useSchoolInvitations } from "@/hooks/queries";
 import {
@@ -53,7 +53,7 @@ export default function TeamPage() {
   const { data: school, isLoading: schoolLoading } = useMySchool();
   const schoolId = school?._id || "";
   const { data: instructors, isLoading: instructorsLoading } = useSchoolInstructors(schoolId);
-  const { data: invitations, isLoading: invitationsLoading } = useSchoolInvitations(schoolId);
+  const { data: invitations } = useSchoolInvitations(schoolId);
   const inviteInstructor = useInviteSchoolInstructor();
   const cancelInvitation = useCancelSchoolInvitation();
   const removeInstructor = useRemoveSchoolInstructor();
