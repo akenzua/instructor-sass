@@ -48,8 +48,8 @@ export default function LoginPage() {
 
   return (
     <AuthLayout
-      title="Instructor Portal"
-      subtitle="Sign in to manage your lessons"
+      title="Welcome back"
+      subtitle="Sign in to your dashboard — your diary is waiting"
       footer={
         <>
           Don&apos;t have an account?{" "}

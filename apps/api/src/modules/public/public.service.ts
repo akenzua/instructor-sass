@@ -17,6 +17,7 @@ import { Package, PackageDocument } from "../../schemas/package.schema";
 import { Lesson, LessonDocument } from "../../schemas/lesson.schema";
 import { Learner, LearnerDocument } from "../../schemas/learner.schema";
 import { Payment, PaymentDocument } from "../../schemas/payment.schema";
+import { School, SchoolDocument } from "../../schemas/school.schema";
 import { BookLessonDto, PurchasePackageDto, SearchInstructorsDto } from "./dto/public.dto";
 import { AuthService } from "../auth/auth.service";
 import { EmailService } from "../email/email.service";
@@ -42,6 +43,8 @@ export class PublicService {
     private learnerModel: Model<LearnerDocument>,
     @InjectModel(Payment.name)
     private paymentModel: Model<PaymentDocument>,
+    @InjectModel(School.name)
+    private schoolModel: Model<SchoolDocument>,
     @Inject(forwardRef(() => AuthService))
     private authService: AuthService,
     private emailService: EmailService,
@@ -457,6 +460,7 @@ export class PublicService {
         isPublicProfileEnabled: true,
       })
       .select("-password -stripeAccountId -email -phone")
+      .populate("schoolId", "name logo")
       .lean();
 
     if (!instructor) {
@@ -472,8 +476,20 @@ export class PublicService {
     // Calculate stats
     const stats = await this.getInstructorStats(instructor._id.toString());
 
+    // For school instructors with no lessonTypes, fall back to school defaults
+    let lessonTypes = instructor.lessonTypes;
+    const schoolRef = instructor.schoolId as any;
+    const schoolId = schoolRef?._id || schoolRef;
+    if (schoolId && (!lessonTypes || lessonTypes.length === 0)) {
+      const school = await this.schoolModel.findById(schoolId).select('lessonTypes').lean();
+      if (school?.lessonTypes?.length) {
+        lessonTypes = school.lessonTypes;
+      }
+    }
+
     return {
       ...instructor,
+      lessonTypes,
       stats,
     };
   }
@@ -484,11 +500,12 @@ export class PublicService {
   async getPackagesByUsername(username: string) {
     const instructor = await this.findInstructorByUsername(username);
 
+    const filter = instructor.schoolId
+      ? { $or: [{ instructorId: instructor._id, isActive: true }, { schoolId: instructor.schoolId, isActive: true }] }
+      : { instructorId: instructor._id, isActive: true };
+
     const packages = await this.packageModel
-      .find({
-        instructorId: instructor._id,
-        isActive: true,
-      })
+      .find(filter)
       .select("-instructorId")
       .sort({ price: 1 })
       .lean();

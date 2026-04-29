@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { lessonsApi, learnersApi, availabilityApi, packagesApi, syllabusApi, notificationsApi } from "@/lib/api";
+import { lessonsApi, learnersApi, availabilityApi, packagesApi, syllabusApi, notificationsApi, schoolsApi, vehiclesApi } from "@/lib/api";
 import type { LessonQuery } from "@acme/shared";
 
 export function useLessons(params?: LessonQuery) {
@@ -148,5 +148,117 @@ export function useTestReadiness(learnerId: string) {
     queryKey: ["test-readiness", learnerId],
     queryFn: () => learnersApi.getTestReadiness(learnerId),
     enabled: !!learnerId,
+  });
+}
+
+// School queries
+export function useMySchool() {
+  return useQuery({
+    queryKey: ["school", "mine"],
+    queryFn: () => schoolsApi.getMine(),
+    staleTime: 60_000,
+  });
+}
+
+export function useSchoolInstructors(schoolId: string) {
+  return useQuery({
+    queryKey: ["school", schoolId, "instructors"],
+    queryFn: () => schoolsApi.listInstructors(schoolId),
+    enabled: !!schoolId,
+  });
+}
+
+export function useSchoolInstructorDetail(schoolId: string, instructorId: string) {
+  return useQuery({
+    queryKey: ["school", schoolId, "instructors", instructorId, "detail"],
+    queryFn: () => schoolsApi.getInstructorDetail(schoolId, instructorId),
+    enabled: !!schoolId && !!instructorId,
+  });
+}
+
+export function useSchoolInstructorLearners(schoolId: string, instructorId: string) {
+  return useQuery({
+    queryKey: ["school", schoolId, "instructors", instructorId, "learners"],
+    queryFn: () => schoolsApi.getInstructorLearners(schoolId, instructorId),
+    enabled: !!schoolId && !!instructorId,
+  });
+}
+
+export function useSchoolInstructorLearnerDetail(schoolId: string, instructorId: string, learnerId: string) {
+  return useQuery({
+    queryKey: ["school", schoolId, "instructors", instructorId, "learners", learnerId],
+    queryFn: () => schoolsApi.getInstructorLearnerDetail(schoolId, instructorId, learnerId),
+    enabled: !!schoolId && !!instructorId && !!learnerId,
+  });
+}
+
+export function useSchoolInvitations(schoolId: string) {
+  return useQuery({
+    queryKey: ["school", schoolId, "invitations"],
+    queryFn: () => schoolsApi.listInvitations(schoolId),
+    enabled: !!schoolId,
+  });
+}
+
+export function useSchoolDashboard(schoolId: string) {
+  return useQuery({
+    queryKey: ["school", schoolId, "dashboard"],
+    queryFn: () => schoolsApi.getDashboard(schoolId),
+    enabled: !!schoolId,
+    staleTime: 60_000,
+  });
+}
+
+export function useSchoolPackages(schoolId: string) {
+  return useQuery({
+    queryKey: ["school", schoolId, "packages"],
+    queryFn: () => schoolsApi.listPackages(schoolId),
+    enabled: !!schoolId,
+  });
+}
+
+export function useSchoolSyllabusList(schoolId: string) {
+  return useQuery({
+    queryKey: ["school", schoolId, "syllabus"],
+    queryFn: () => schoolsApi.listSyllabus(schoolId),
+    enabled: !!schoolId,
+  });
+}
+
+export function useSchoolPolicies(schoolId: string) {
+  return useQuery({
+    queryKey: ["school", schoolId, "policies"],
+    queryFn: () => schoolsApi.getPolicies(schoolId),
+    enabled: !!schoolId,
+  });
+}
+
+// Vehicle queries
+export function useVehicles() {
+  return useQuery({
+    queryKey: ["vehicles"],
+    queryFn: () => vehiclesApi.getAll(),
+  });
+}
+
+export function useMyVehicles() {
+  return useQuery({
+    queryKey: ["vehicles", "mine"],
+    queryFn: () => vehiclesApi.getMine(),
+  });
+}
+
+export function useVehicle(id: string) {
+  return useQuery({
+    queryKey: ["vehicle", id],
+    queryFn: () => vehiclesApi.getById(id),
+    enabled: !!id,
+  });
+}
+
+export function useVehicleAssignments() {
+  return useQuery({
+    queryKey: ["vehicles", "assignments"],
+    queryFn: () => vehiclesApi.listAssignments(),
   });
 }

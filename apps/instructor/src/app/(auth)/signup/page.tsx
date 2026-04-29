@@ -86,6 +86,16 @@ export default function SignupPage() {
           >
             Sign in
           </Link>
+          {" | "}
+          <Link
+            href="/signup/school"
+            style={{
+              color: "var(--chakra-colors-primary-500)",
+              fontWeight: 500,
+            }}
+          >
+            Register a School
+          </Link>
         </>
       }
     >

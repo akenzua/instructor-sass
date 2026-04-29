@@ -2,14 +2,22 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Package, PackageDocument } from '../../schemas/package.schema';
+import { Instructor, InstructorDocument } from '../../schemas/instructor.schema';
 import { CreatePackageDto, UpdatePackageDto } from './dto/package.dto';
 
 @Injectable()
 export class PackagesService {
   constructor(
     @InjectModel(Package.name)
-    private packageModel: Model<PackageDocument>
+    private packageModel: Model<PackageDocument>,
+    @InjectModel(Instructor.name)
+    private instructorModel: Model<InstructorDocument>,
   ) {}
+
+  private async getSchoolId(instructorId: string): Promise<Types.ObjectId | null> {
+    const inst = await this.instructorModel.findById(instructorId).select('schoolId').lean();
+    return inst?.schoolId ? new Types.ObjectId(inst.schoolId as any) : null;
+  }
 
   async create(instructorId: string, dto: CreatePackageDto): Promise<PackageDocument> {
     return this.packageModel.create({
@@ -19,11 +27,21 @@ export class PackagesService {
   }
 
   async findAll(instructorId: string): Promise<PackageDocument[]> {
-    return this.packageModel.find({ instructorId: new Types.ObjectId(instructorId) }).sort({ createdAt: -1 });
+    const oid = new Types.ObjectId(instructorId);
+    const schoolId = await this.getSchoolId(instructorId);
+    const filter = schoolId
+      ? { $or: [{ instructorId: oid }, { schoolId }] }
+      : { instructorId: oid };
+    return this.packageModel.find(filter).sort({ createdAt: -1 });
   }
 
   async findActive(instructorId: string): Promise<PackageDocument[]> {
-    return this.packageModel.find({ instructorId: new Types.ObjectId(instructorId), isActive: true }).sort({ price: 1 });
+    const oid = new Types.ObjectId(instructorId);
+    const schoolId = await this.getSchoolId(instructorId);
+    const filter = schoolId
+      ? { $or: [{ instructorId: oid, isActive: true }, { schoolId, isActive: true }] }
+      : { instructorId: oid, isActive: true };
+    return this.packageModel.find(filter).sort({ price: 1 });
   }
 
   async findById(instructorId: string, id: string): Promise<PackageDocument> {

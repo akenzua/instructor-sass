@@ -11,11 +11,11 @@ import {
   VStack,
   useDisclosure,
 } from "@chakra-ui/react";
-import { Calendar, Clock, MapPin, X, CalendarPlus } from "lucide-react";
+import { Calendar, Clock, MapPin, X, CalendarPlus, Car } from "lucide-react";
 import { format, formatDistanceToNow, isFuture } from "date-fns";
 import { StatusBadge } from "@acme/ui";
 import type { PopulatedLesson } from "@/types";
-import { isPopulatedInstructor } from "@/types";
+import { isPopulatedInstructor, isPopulatedVehicle } from "@/types";
 import { isLessonUrgent, isLessonToday, formatLessonType } from "@/lib/utils";
 import { CancelLessonModal } from "./CancelLessonModal";
 import { calendarApi } from "@/lib/api";
@@ -102,6 +102,15 @@ export function LessonCard({ lesson }: LessonCardProps) {
             <Text fontWeight="medium">
               Instructor: {lesson.instructorId.firstName}{" "}
               {lesson.instructorId.lastName}
+            </Text>
+          </HStack>
+        )}
+
+        {isPopulatedVehicle(lesson.vehicleId) && (
+          <HStack color="text.muted" fontSize="sm">
+            <Car size={14} aria-hidden="true" />
+            <Text>
+              {lesson.vehicleId.make} {lesson.vehicleId.model} — {lesson.vehicleId.registration}
             </Text>
           </HStack>
         )}

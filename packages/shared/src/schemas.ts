@@ -97,6 +97,11 @@ export const instructorSchema = z.object({
   cancellationPolicy: cancellationPolicySchema.optional(),
   stripeAccountId: z.string().optional(),
   
+  // School / multi-instructor
+  schoolId: objectIdSchema.optional(),
+  role: z.enum(["owner", "admin", "instructor"]).optional(),
+  isTeaching: z.boolean().default(false),
+
   // Metadata
   profileViews: z.number().default(0),
   lastActiveAt: z.string().datetime().optional(),
@@ -238,6 +243,7 @@ export const lessonSchema = z.object({
   topicTitle: z.string().optional(),
   topicScore: z.number().int().min(1).max(5).optional(),
   topicNotes: z.string().optional(),
+  vehicleId: objectIdSchema.optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -328,7 +334,8 @@ export type CreateAvailabilityOverride = z.infer<typeof createAvailabilityOverri
 
 export const packageSchema = z.object({
   _id: objectIdSchema,
-  instructorId: objectIdSchema,
+  instructorId: objectIdSchema.optional(),
+  schoolId: objectIdSchema.optional(),
   name: z.string().min(1).max(100),
   description: z.string().optional(),
   lessonCount: z.number().int().positive(),
@@ -503,7 +510,8 @@ export const syllabusTopicSchema = z.object({
 
 export const syllabusSchema = z.object({
   _id: objectIdSchema,
-  instructorId: objectIdSchema,
+  instructorId: objectIdSchema.optional(),
+  schoolId: objectIdSchema.optional(),
   name: z.string().min(1).max(200),
   description: z.string().optional(),
   isDefault: z.boolean().default(false),
@@ -562,3 +570,162 @@ export type ScoreHistoryEntry = z.infer<typeof scoreHistoryEntrySchema>;
 export type TopicProgressStatus = z.infer<typeof topicProgressStatusSchema>;
 export type TopicProgress = z.infer<typeof topicProgressSchema>;
 export type LearnerProgressRecord = z.infer<typeof learnerProgressSchema>;
+
+// ============================================================================
+// School (Multi-Instructor)
+// ============================================================================
+
+export const schoolRoleSchema = z.enum(["owner", "admin", "instructor"]);
+
+export const schoolSettingsSchema = z.object({
+  defaultHourlyRate: z.number().positive().optional(),
+  defaultCurrency: z.string().default("GBP"),
+});
+
+export const schoolSchema = z.object({
+  _id: objectIdSchema,
+  name: z.string().min(1).max(200),
+  email: z.string().email(),
+  phone: z.string().optional(),
+  address: z.object({
+    line1: z.string().optional(),
+    line2: z.string().optional(),
+    city: z.string().optional(),
+    postcode: z.string().optional(),
+  }).optional(),
+  logo: z.string().optional(),
+  businessRegistrationNumber: z.string().optional(),
+  ownerId: objectIdSchema,
+  settings: schoolSettingsSchema.optional(),
+  cancellationPolicy: cancellationPolicySchema.optional(),
+  lessonTypes: z.array(lessonTypeConfigSchema).default([]),
+  status: z.enum(["active", "suspended"]).default("active"),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export const createSchoolSchema = schoolSchema.omit({
+  _id: true,
+  ownerId: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateSchoolSchema = createSchoolSchema.partial();
+
+export type SchoolRole = z.infer<typeof schoolRoleSchema>;
+export type SchoolSettings = z.infer<typeof schoolSettingsSchema>;
+export type School = z.infer<typeof schoolSchema>;
+export type CreateSchool = z.infer<typeof createSchoolSchema>;
+export type UpdateSchool = z.infer<typeof updateSchoolSchema>;
+
+// ============================================================================
+// Vehicle (Fleet Management)
+// ============================================================================
+
+export const vehicleStatusSchema = z.enum(["active", "maintenance", "retired"]);
+
+export const vehicleSchema = z.object({
+  _id: objectIdSchema,
+  schoolId: objectIdSchema,
+  make: z.string().min(1).max(100),
+  model: z.string().min(1).max(100),
+  year: z.number().int().min(1900).max(2100).optional(),
+  registration: z.string().min(1).max(20),
+  transmission: z.enum(["manual", "automatic", "both"]).default("manual"),
+  color: z.string().optional(),
+  imageUrl: z.string().optional(),
+  hasLearnerDualControls: z.boolean().default(true),
+  status: vehicleStatusSchema.default("active"),
+  insuranceExpiry: z.string().datetime().optional(),
+  motExpiry: z.string().datetime().optional(),
+  notes: z.string().optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export const createVehicleSchema = vehicleSchema.omit({
+  _id: true,
+  schoolId: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateVehicleSchema = createVehicleSchema.partial();
+
+export type VehicleStatus = z.infer<typeof vehicleStatusSchema>;
+export type Vehicle = z.infer<typeof vehicleSchema>;
+export type CreateVehicle = z.infer<typeof createVehicleSchema>;
+export type UpdateVehicle = z.infer<typeof updateVehicleSchema>;
+
+// ============================================================================
+// Vehicle Assignment
+// ============================================================================
+
+export const vehicleAssignmentSchema = z.object({
+  _id: objectIdSchema,
+  vehicleId: objectIdSchema,
+  instructorId: objectIdSchema,
+  schoolId: objectIdSchema,
+  isPrimary: z.boolean().default(false),
+  status: z.enum(["active", "ended"]).default("active"),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export const assignVehicleSchema = z.object({
+  instructorId: objectIdSchema,
+  isPrimary: z.boolean().default(false),
+});
+
+export type VehicleAssignment = z.infer<typeof vehicleAssignmentSchema>;
+export type AssignVehicle = z.infer<typeof assignVehicleSchema>;
+
+// ============================================================================
+// School Invitation
+// ============================================================================
+
+export const invitationStatusSchema = z.enum(["pending", "accepted", "declined", "expired"]);
+
+export const schoolInvitationSchema = z.object({
+  _id: objectIdSchema,
+  schoolId: objectIdSchema,
+  email: z.string().email(),
+  role: z.enum(["admin", "instructor"]).default("instructor"),
+  status: invitationStatusSchema.default("pending"),
+  invitedBy: objectIdSchema,
+  token: z.string(),
+  expiresAt: z.string().datetime(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export type InvitationStatus = z.infer<typeof invitationStatusSchema>;
+export type SchoolInvitation = z.infer<typeof schoolInvitationSchema>;
+
+// ============================================================================
+// School Signup
+// ============================================================================
+
+export const schoolSignupSchema = z.object({
+  // School info
+  schoolName: z.string().min(1).max(200),
+  schoolEmail: z.string().email(),
+  schoolPhone: z.string().optional(),
+  businessRegistrationNumber: z.string().optional(),
+  address: z.object({
+    line1: z.string().optional(),
+    line2: z.string().optional(),
+    city: z.string().optional(),
+    postcode: z.string().optional(),
+  }).optional(),
+  // Admin personal info
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
+  email: z.string().email(),
+  password: z.string().min(8),
+  phone: z.string().optional(),
+});
+
+export type SchoolSignupInput = z.infer<typeof schoolSignupSchema>;

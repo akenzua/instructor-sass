@@ -14,13 +14,14 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { Calendar, Clock, MapPin, CalendarPlus } from "lucide-react";
+import { Calendar, Clock, MapPin, CalendarPlus, Car } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { StatusBadge } from "@acme/ui";
 import type { PopulatedLesson } from "@/types";
 import { isLessonUrgent, formatLessonType } from "@/lib/utils";
 import { EmptyLessons } from "./EmptyLessons";
 import { calendarApi } from "@/lib/api";
+import { isPopulatedVehicle } from "@/types";
 
 interface NextLessonCardProps {
   lesson: PopulatedLesson | null;
@@ -114,6 +115,15 @@ export function NextLessonCard({
                 <HStack color="text.muted">
                   <MapPin size={16} aria-hidden="true" />
                   <Text>{lesson.pickupLocation}</Text>
+                </HStack>
+              )}
+
+              {isPopulatedVehicle(lesson.vehicleId) && (
+                <HStack color="text.muted">
+                  <Car size={16} aria-hidden="true" />
+                  <Text>
+                    {lesson.vehicleId.make} {lesson.vehicleId.model} — {lesson.vehicleId.registration}
+                  </Text>
                 </HStack>
               )}
             </VStack>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { lessonsApi, learnersApi, paymentsApi, availabilityApi, packagesApi, instructorApi, syllabusApi, notificationsApi, type UpdateInstructorData } from "@/lib/api";
+import { lessonsApi, learnersApi, paymentsApi, availabilityApi, packagesApi, instructorApi, syllabusApi, notificationsApi, schoolsApi, vehiclesApi, type UpdateInstructorData } from "@/lib/api";
 import type { Lesson, Learner, CreateLesson, CreateLearner } from "@acme/shared";
 
 // Lesson mutations
@@ -335,6 +335,201 @@ export function useUpdateTestReadiness() {
     onSuccess: (_, { learnerId }) => {
       queryClient.invalidateQueries({ queryKey: ["test-readiness", learnerId] });
       queryClient.invalidateQueries({ queryKey: ["learner", learnerId] });
+    },
+  });
+}
+
+// School mutations
+export function useCreateSchool() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string; email: string; phone?: string; logo?: string; businessRegistrationNumber?: string }) =>
+      schoolsApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["school"] });
+    },
+  });
+}
+
+export function useUpdateSchool() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof schoolsApi.update>[1] }) =>
+      schoolsApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["school"] });
+    },
+  });
+}
+
+export function useInviteSchoolInstructor() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ schoolId, data }: { schoolId: string; data: { email: string; role?: 'admin' | 'instructor' } }) =>
+      schoolsApi.inviteInstructor(schoolId, data),
+    onSuccess: (_, { schoolId }) => {
+      queryClient.invalidateQueries({ queryKey: ["school", schoolId, "invitations"] });
+    },
+  });
+}
+
+export function useCancelSchoolInvitation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ schoolId, invitationId }: { schoolId: string; invitationId: string }) =>
+      schoolsApi.cancelInvitation(schoolId, invitationId),
+    onSuccess: (_, { schoolId }) => {
+      queryClient.invalidateQueries({ queryKey: ["school", schoolId, "invitations"] });
+    },
+  });
+}
+
+export function useRemoveSchoolInstructor() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ schoolId, instructorId }: { schoolId: string; instructorId: string }) =>
+      schoolsApi.removeInstructor(schoolId, instructorId),
+    onSuccess: (_, { schoolId }) => {
+      queryClient.invalidateQueries({ queryKey: ["school", schoolId, "instructors"] });
+      queryClient.invalidateQueries({ queryKey: ["school", schoolId, "dashboard"] });
+    },
+  });
+}
+
+// School-level package mutations
+export function useCreateSchoolPackage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ schoolId, data }: { schoolId: string; data: any }) =>
+      schoolsApi.createPackage(schoolId, data),
+    onSuccess: (_, { schoolId }) => {
+      queryClient.invalidateQueries({ queryKey: ["school", schoolId, "packages"] });
+    },
+  });
+}
+
+export function useUpdateSchoolPackage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ schoolId, packageId, data }: { schoolId: string; packageId: string; data: any }) =>
+      schoolsApi.updatePackage(schoolId, packageId, data),
+    onSuccess: (_, { schoolId }) => {
+      queryClient.invalidateQueries({ queryKey: ["school", schoolId, "packages"] });
+    },
+  });
+}
+
+export function useDeleteSchoolPackage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ schoolId, packageId }: { schoolId: string; packageId: string }) =>
+      schoolsApi.deletePackage(schoolId, packageId),
+    onSuccess: (_, { schoolId }) => {
+      queryClient.invalidateQueries({ queryKey: ["school", schoolId, "packages"] });
+    },
+  });
+}
+
+// School-level syllabus mutations
+export function useCreateSchoolSyllabus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ schoolId, data }: { schoolId: string; data: any }) =>
+      schoolsApi.createSyllabus(schoolId, data),
+    onSuccess: (_, { schoolId }) => {
+      queryClient.invalidateQueries({ queryKey: ["school", schoolId, "syllabus"] });
+    },
+  });
+}
+
+export function useUpdateSchoolSyllabus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ schoolId, syllabusId, data }: { schoolId: string; syllabusId: string; data: any }) =>
+      schoolsApi.updateSyllabus(schoolId, syllabusId, data),
+    onSuccess: (_, { schoolId }) => {
+      queryClient.invalidateQueries({ queryKey: ["school", schoolId, "syllabus"] });
+    },
+  });
+}
+
+export function useDeleteSchoolSyllabus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ schoolId, syllabusId }: { schoolId: string; syllabusId: string }) =>
+      schoolsApi.deleteSyllabus(schoolId, syllabusId),
+    onSuccess: (_, { schoolId }) => {
+      queryClient.invalidateQueries({ queryKey: ["school", schoolId, "syllabus"] });
+    },
+  });
+}
+
+// School policies mutation
+export function useUpdateSchoolPolicies() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ schoolId, data }: { schoolId: string; data: any }) =>
+      schoolsApi.updatePolicies(schoolId, data),
+    onSuccess: (_, { schoolId }) => {
+      queryClient.invalidateQueries({ queryKey: ["school", schoolId, "policies"] });
+    },
+  });
+}
+
+// Vehicle mutations
+export function useCreateVehicle() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Parameters<typeof vehiclesApi.create>[0]) =>
+      vehiclesApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+    },
+  });
+}
+
+export function useUpdateVehicle() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof vehiclesApi.update>[1] }) =>
+      vehiclesApi.update(id, data),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["vehicle", id] });
+    },
+  });
+}
+
+export function useRemoveVehicle() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => vehiclesApi.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+    },
+  });
+}
+
+export function useAssignVehicle() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ vehicleId, instructorId, isPrimary }: { vehicleId: string; instructorId: string; isPrimary?: boolean }) =>
+      vehiclesApi.assign(vehicleId, { instructorId, isPrimary }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["vehicles", "assignments"] });
+    },
+  });
+}
+
+export function useUnassignVehicle() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ vehicleId, instructorId }: { vehicleId: string; instructorId: string }) =>
+      vehiclesApi.unassign(vehicleId, instructorId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["vehicles", "assignments"] });
     },
   });
 }

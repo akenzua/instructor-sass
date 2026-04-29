@@ -47,7 +47,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const data = await authApi.login({ email, password });
     localStorage.setItem('token', data.accessToken);
     setInstructor(data.instructor);
-    router.push('/');
+
+    // Owner/admin without teaching → school dashboard; everyone else → instructor dashboard
+    const inst = data.instructor as any;
+    const isAdminOnly = inst?.schoolId && ['owner', 'admin'].includes(inst?.role) && !inst?.isTeaching;
+    router.push(isAdminOnly ? '/school/dashboard' : '/');
   };
 
   const logout = () => {

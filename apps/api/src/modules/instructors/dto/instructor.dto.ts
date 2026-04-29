@@ -250,4 +250,8 @@ export class UpdateInstructorDto {
   @Type(() => CancellationPolicyDto)
   @IsOptional()
   cancellationPolicy?: CancellationPolicyDto;
+
+  @IsBoolean()
+  @IsOptional()
+  isTeaching?: boolean;
 }

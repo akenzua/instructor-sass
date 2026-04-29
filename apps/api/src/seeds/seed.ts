@@ -54,6 +54,10 @@ const InstructorSchema = new mongoose.Schema(
     showPricing: Boolean,
     showAvailability: Boolean,
     acceptingNewStudents: Boolean,
+    // School / multi-instructor fields
+    schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+    role: { type: String, enum: ['owner', 'admin', 'instructor'], default: null },
+    isTeaching: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -106,12 +110,72 @@ const WeeklyAvailabilitySchema = new mongoose.Schema(
 const PackageSchema = new mongoose.Schema(
   {
     instructorId: mongoose.Schema.Types.ObjectId,
+    schoolId: mongoose.Schema.Types.ObjectId,
     name: String,
     description: String,
     lessonCount: Number,
     price: Number,
     discountPercent: Number,
     isActive: Boolean,
+  },
+  { timestamps: true }
+);
+
+const SchoolSchema = new mongoose.Schema(
+  {
+    name: String,
+    email: String,
+    phone: String,
+    logo: String,
+    businessRegistrationNumber: String,
+    ownerId: mongoose.Schema.Types.ObjectId,
+    settings: {
+      defaultHourlyRate: Number,
+      defaultCurrency: String,
+    },
+    lessonTypes: [
+      {
+        type: { type: String },
+        price: Number,
+        duration: Number,
+        description: String,
+      },
+    ],
+    cancellationPolicy: {
+      hoursBeforeLesson: Number,
+      refundPercentage: Number,
+      description: String,
+    },
+    status: String,
+  },
+  { timestamps: true }
+);
+
+const VehicleSchema = new mongoose.Schema(
+  {
+    schoolId: mongoose.Schema.Types.ObjectId,
+    make: String,
+    model: String,
+    year: Number,
+    registration: String,
+    transmission: String,
+    color: String,
+    hasLearnerDualControls: Boolean,
+    status: String,
+    insuranceExpiry: Date,
+    motExpiry: Date,
+    notes: String,
+  },
+  { timestamps: true }
+);
+
+const VehicleAssignmentSchema = new mongoose.Schema(
+  {
+    vehicleId: mongoose.Schema.Types.ObjectId,
+    instructorId: mongoose.Schema.Types.ObjectId,
+    schoolId: mongoose.Schema.Types.ObjectId,
+    isPrimary: Boolean,
+    status: String,
   },
   { timestamps: true }
 );
@@ -127,6 +191,9 @@ async function seed() {
   const Lesson = mongoose.model('Lesson', LessonSchema);
   const WeeklyAvailability = mongoose.model('WeeklyAvailability', WeeklyAvailabilitySchema);
   const Package = mongoose.model('Package', PackageSchema);
+  const SchoolModel = mongoose.model('School', SchoolSchema);
+  const VehicleModel = mongoose.model('Vehicle', VehicleSchema);
+  const VehicleAssignmentModel = mongoose.model('VehicleAssignment', VehicleAssignmentSchema);
 
   // Payment schema for cleanup (no Mongoose model needed, use raw collection)
   const PaymentSchema = new mongoose.Schema({}, { strict: false });
@@ -142,8 +209,11 @@ async function seed() {
     Package.deleteMany({}),
     Payment.deleteMany({}),
     MagicLinkToken.deleteMany({}),
+    SchoolModel.deleteMany({}),
+    VehicleModel.deleteMany({}),
+    VehicleAssignmentModel.deleteMany({}),
   ]);
-  console.log('🧹 Cleared existing data (including payments)');
+  console.log('🧹 Cleared existing data (including payments, schools, vehicles)');
 
   // Create instructor
   const hashedPassword = await bcrypt.hash('password123', 12);
@@ -242,10 +312,7 @@ async function seed() {
         coordinates: [-0.1426, 51.5390],
       },
       vehicleInfo: { make: 'Toyota', model: 'Yaris', year: 2023, transmission: 'automatic' },
-      lessonTypes: [
-        { type: 'standard', price: 42, duration: 60, description: 'Standard lesson' },
-        { type: 'intensive', price: 180, duration: 240, description: '4-hour intensive session' },
-      ],
+      lessonTypes: [],
       isPublicProfileEnabled: true,
       showPricing: true,
       showAvailability: true,
@@ -718,6 +785,117 @@ async function seed() {
   const createdInstructors = await Instructor.insertMany(additionalInstructors);
   console.log(`👨‍🏫 Created ${createdInstructors.length + 1} instructors total`);
 
+  // Create a demo school
+  const school = await SchoolModel.create({
+    name: 'Smith Driving School',
+    email: 'info@smithdrivingschool.co.uk',
+    phone: '020 7946 0958',
+    businessRegistrationNumber: 'DSA-12345',
+    ownerId: instructor._id,
+    settings: { defaultHourlyRate: 45, defaultCurrency: 'GBP' },
+    lessonTypes: [
+      { type: 'standard', price: 45, duration: 60, description: 'Standard driving lesson' },
+      { type: 'test-prep', price: 50, duration: 60, description: 'Test preparation lesson' },
+      { type: 'intensive', price: 170, duration: 240, description: '4-hour intensive session' },
+      { type: 'motorway', price: 55, duration: 90, description: 'Motorway driving lesson' },
+    ],
+    cancellationPolicy: {
+      hoursBeforeLesson: 24,
+      refundPercentage: 100,
+      description: 'Free cancellation up to 24 hours before the lesson',
+    },
+    status: 'active',
+  });
+
+  // Link the main instructor as school owner (admin-only by default, not teaching)
+  await Instructor.updateOne(
+    { _id: instructor._id },
+    { $set: { schoolId: school._id, role: 'owner', isTeaching: false } }
+  );
+
+  // Link Sarah Johnson as a school instructor
+  const sarahInstructor = createdInstructors.find((i: any) => i.email === 'sarah.johnson@example.com');
+  if (sarahInstructor) {
+    await Instructor.updateOne(
+      { _id: sarahInstructor._id },
+      { $set: { schoolId: school._id, role: 'instructor', isTeaching: true } }
+    );
+  }
+
+  // Link Priya Patel as a school admin
+  const priyaInstructor = createdInstructors.find((i: any) => i.email === 'priya.patel@example.com');
+  if (priyaInstructor) {
+    await Instructor.updateOne(
+      { _id: priyaInstructor._id },
+      { $set: { schoolId: school._id, role: 'admin', isTeaching: false } }
+    );
+  }
+  console.log('🏫 Created school and linked 3 members (owner, admin, instructor)');
+
+  // Create vehicles for the school
+  const vehicles = await VehicleModel.insertMany([
+    {
+      schoolId: school._id,
+      make: 'Ford',
+      model: 'Fiesta',
+      year: 2022,
+      registration: 'AB12 CDE',
+      transmission: 'manual',
+      color: 'White',
+      hasLearnerDualControls: true,
+      status: 'active',
+      insuranceExpiry: new Date('2025-12-31'),
+      motExpiry: new Date('2025-06-15'),
+    },
+    {
+      schoolId: school._id,
+      make: 'Toyota',
+      model: 'Yaris',
+      year: 2023,
+      registration: 'FG23 HIJ',
+      transmission: 'automatic',
+      color: 'Silver',
+      hasLearnerDualControls: true,
+      status: 'active',
+      insuranceExpiry: new Date('2025-11-30'),
+      motExpiry: new Date('2025-08-20'),
+    },
+    {
+      schoolId: school._id,
+      make: 'Vauxhall',
+      model: 'Corsa',
+      year: 2021,
+      registration: 'KL21 MNO',
+      transmission: 'manual',
+      color: 'Red',
+      hasLearnerDualControls: true,
+      status: 'maintenance',
+      notes: 'Dual controls being serviced',
+    },
+  ]);
+  console.log(`🚗 Created ${vehicles.length} vehicles`);
+
+  // Assign vehicles to instructors
+  const assignments = [
+    {
+      vehicleId: vehicles[0]._id,
+      instructorId: instructor._id,
+      schoolId: school._id,
+      isPrimary: true,
+      status: 'active',
+    },
+    {
+      vehicleId: vehicles[1]._id,
+      instructorId: sarahInstructor?._id,
+      schoolId: school._id,
+      isPrimary: true,
+      status: 'active',
+    },
+  ].filter((a) => a.instructorId);
+
+  await VehicleAssignmentModel.insertMany(assignments);
+  console.log(`📋 Created ${assignments.length} vehicle assignments`);
+
   // Create learners
   const learners = await Learner.insertMany([
     {
@@ -890,7 +1068,7 @@ async function seed() {
   }));
 
   await WeeklyAvailability.insertMany(availability);
-  // Create packages
+  // Create packages for solo instructor (John's personal ones)
   const packages = await Package.insertMany([
     {
       instructorId: instructor._id,
@@ -920,7 +1098,38 @@ async function seed() {
       isActive: true,
     },
   ]);
-  console.log(`📦 Created ${packages.length} packages`);
+
+  // Create school-level packages (visible to all school instructors)
+  const schoolPackages = await Package.insertMany([
+    {
+      schoolId: school._id,
+      name: 'School Starter Pack',
+      description: '5 lessons at school rates. Great for getting started.',
+      lessonCount: 5,
+      price: 210,
+      discountPercent: 8,
+      isActive: true,
+    },
+    {
+      schoolId: school._id,
+      name: 'School Standard Pack',
+      description: '10 lessons at school rates. Our most popular school package.',
+      lessonCount: 10,
+      price: 400,
+      discountPercent: 12,
+      isActive: true,
+    },
+    {
+      schoolId: school._id,
+      name: 'School Intensive Pack',
+      description: '20 lessons block booking. Best value at school rates.',
+      lessonCount: 20,
+      price: 750,
+      discountPercent: 18,
+      isActive: true,
+    },
+  ]);
+  console.log(`📦 Created ${packages.length} personal + ${schoolPackages.length} school packages`);
 
   console.log('📅 Created weekly availability');
 
@@ -933,6 +1142,7 @@ async function seed() {
     new mongoose.Schema(
       {
         instructorId: mongoose.Schema.Types.ObjectId,
+        schoolId: mongoose.Schema.Types.ObjectId,
         name: String,
         description: String,
         isDefault: Boolean,
@@ -992,6 +1202,14 @@ async function seed() {
     isDefault: true,
   });
   console.log(`📋 Created DVSA syllabus with ${syllabus.topics.length} topics`);
+
+  // Create school-level DVSA syllabus
+  await SyllabusModel.create({
+    ...DEFAULT_DVSA_SYLLABUS,
+    schoolId: school._id,
+    isDefault: true,
+  });
+  console.log('📋 Created school DVSA syllabus');
 
   // Create progress for each learner with some realistic scores
   const allLearners = await Learner.find({ instructorId: instructor._id });
@@ -1053,6 +1271,178 @@ async function seed() {
     });
   }
   console.log(`📊 Created progress records for ${allLearners.length} learners`);
+
+  // ============================================================================
+  // Seed learners, lessons, links, and progress for Sarah (school instructor)
+  // ============================================================================
+
+  const LearnerInstructorLinkModel = mongoose.model(
+    'LearnerInstructorLink',
+    new mongoose.Schema(
+      {
+        learnerId: mongoose.Schema.Types.ObjectId,
+        instructorId: mongoose.Schema.Types.ObjectId,
+        balance: { type: Number, default: 0 },
+        totalLessons: { type: Number, default: 0 },
+        completedLessons: { type: Number, default: 0 },
+        cancelledLessons: { type: Number, default: 0 },
+        totalSpent: { type: Number, default: 0 },
+        status: { type: String, default: 'active' },
+        testReadiness: String,
+        testReadinessComment: String,
+        testReadinessUpdatedAt: Date,
+        instructorNotes: String,
+        defaultPickupLocation: String,
+        startedAt: Date,
+        lastLessonAt: Date,
+      },
+      { timestamps: true },
+    ),
+  );
+
+  // Also create links for John's existing learners
+  for (const learner of allLearners) {
+    await LearnerInstructorLinkModel.create({
+      learnerId: learner._id,
+      instructorId: instructor._id,
+      totalLessons: learner.totalLessons,
+      completedLessons: learner.completedLessons,
+      totalSpent: learner.completedLessons * 9000, // ~£90 per lesson in pence
+      status: 'active',
+      startedAt: new Date(Date.now() - 180 * 86400000),
+      lastLessonAt: new Date(Date.now() - 86400000),
+    });
+  }
+
+  if (sarahInstructor) {
+    const sarahOid = sarahInstructor._id;
+
+    // Create 2 learners for Sarah
+    const sarahLearners = await Learner.insertMany([
+      {
+        instructorId: sarahOid,
+        email: 'oliver.jones@example.com',
+        firstName: 'Oliver',
+        lastName: 'Jones',
+        phone: '07700 900010',
+        status: 'active',
+        balance: 0,
+        totalLessons: 15,
+        completedLessons: 12,
+      },
+      {
+        instructorId: sarahOid,
+        email: 'amelia.clark@example.com',
+        firstName: 'Amelia',
+        lastName: 'Clark',
+        phone: '07700 900011',
+        status: 'active',
+        balance: -4500,
+        totalLessons: 8,
+        completedLessons: 6,
+      },
+    ]);
+
+    // Create lessons for Sarah's learners
+    const sarahLessons: any[] = [];
+    for (let weeksAgo = 16; weeksAgo >= 1; weeksAgo--) {
+      const lessonsThisWeek = 2 + Math.floor(Math.random() * 2);
+      for (let j = 0; j < lessonsThisWeek; j++) {
+        const dayInWeek = Math.floor(Math.random() * 5);
+        const hour = 9 + Math.floor(Math.random() * 7);
+        const startTime = new Date(now);
+        startTime.setDate(now.getDate() - weeksAgo * 7 + dayInWeek);
+        startTime.setHours(hour, 0, 0, 0);
+        const duration = [60, 90][Math.floor(Math.random() * 2)];
+        const endTime = new Date(startTime);
+        endTime.setMinutes(startTime.getMinutes() + duration);
+        const learner = sarahLearners[Math.floor(Math.random() * sarahLearners.length)];
+        const isCancelled = Math.random() < 0.05;
+        sarahLessons.push({
+          instructorId: sarahOid,
+          learnerId: learner._id,
+          startTime,
+          endTime,
+          duration,
+          type: lessonTypes[Math.floor(Math.random() * lessonTypes.length)],
+          status: isCancelled ? 'cancelled' : 'completed',
+          paymentStatus: isCancelled ? 'refunded' : 'paid',
+          price: prices[Math.floor(Math.random() * prices.length)],
+          pickupLocation: pickupLocations[Math.floor(Math.random() * pickupLocations.length)],
+        });
+      }
+    }
+    await Lesson.insertMany(sarahLessons);
+
+    // Create learner-instructor links for Sarah's learners
+    await LearnerInstructorLinkModel.insertMany([
+      {
+        learnerId: sarahLearners[0]._id,
+        instructorId: sarahOid,
+        totalLessons: 15,
+        completedLessons: 12,
+        cancelledLessons: 1,
+        totalSpent: 12 * 9000,
+        status: 'active',
+        testReadiness: 'nearly-ready',
+        testReadinessComment: 'Good progress, needs a few more motorway sessions',
+        startedAt: new Date(Date.now() - 120 * 86400000),
+        lastLessonAt: new Date(Date.now() - 2 * 86400000),
+      },
+      {
+        learnerId: sarahLearners[1]._id,
+        instructorId: sarahOid,
+        totalLessons: 8,
+        completedLessons: 6,
+        cancelledLessons: 0,
+        totalSpent: 6 * 9000,
+        status: 'active',
+        testReadiness: 'not-ready',
+        testReadinessComment: 'Still building confidence with junctions',
+        startedAt: new Date(Date.now() - 60 * 86400000),
+        lastLessonAt: new Date(Date.now() - 5 * 86400000),
+      },
+    ]);
+
+    // Get school syllabus for progress records
+    const schoolSyllabus = await SyllabusModel.findOne({ schoolId: school._id });
+    if (schoolSyllabus) {
+      for (let idx = 0; idx < sarahLearners.length; idx++) {
+        const learner = sarahLearners[idx];
+        const topicsCompleted = Math.max(0, Math.floor((37 - idx * 12) * 0.5));
+        const topicProgress = schoolSyllabus.topics.map((t: any) => {
+          const order = t.order;
+          if (order <= topicsCompleted) {
+            return {
+              topicOrder: order,
+              status: 'completed',
+              currentScore: 4 + Math.floor(Math.random() * 2),
+              attempts: 1 + Math.floor(Math.random() * 3),
+              history: [{ date: new Date(Date.now() - (37 - order) * 5 * 86400000), score: 4 + Math.floor(Math.random() * 2), notes: 'Good progress' }],
+              completedAt: new Date(Date.now() - (37 - order) * 5 * 86400000),
+            };
+          } else if (order <= topicsCompleted + 3) {
+            return {
+              topicOrder: order,
+              status: 'in-progress',
+              currentScore: 2 + Math.floor(Math.random() * 2),
+              attempts: 1 + Math.floor(Math.random() * 2),
+              history: [{ date: new Date(Date.now() - 4 * 86400000), score: 2 + Math.floor(Math.random() * 2), notes: 'Needs practice' }],
+            };
+          } else {
+            return { topicOrder: order, status: 'not-started', currentScore: 0, attempts: 0, history: [] };
+          }
+        });
+        await LearnerProgressModel.create({
+          learnerId: learner._id,
+          instructorId: sarahOid,
+          syllabusId: schoolSyllabus._id,
+          topicProgress,
+        });
+      }
+    }
+    console.log(`📊 Created Sarah's learners: ${sarahLearners.length} learners, ${sarahLessons.length} lessons, with links & progress`);
+  }
 
   await mongoose.disconnect();
   console.log('✅ Seed completed!');

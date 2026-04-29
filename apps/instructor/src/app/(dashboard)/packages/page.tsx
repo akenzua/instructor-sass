@@ -36,8 +36,9 @@ import {
   useToast,
   VStack,
 } from "@chakra-ui/react";
-import { Edit2, Plus, Trash2 } from "lucide-react";
+import { Edit2, Lock, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@acme/ui";
+import { useAuth } from "@/lib/auth";
 import { usePackages } from "@/hooks";
 import { useCreatePackage, useUpdatePackage, useDeletePackage } from "@/hooks/mutations";
 import type { Package } from "@/lib/api";
@@ -64,6 +65,9 @@ export default function PackagesPage() {
   const toast = useToast();
   const modal = useDisclosure();
   const deleteModal = useDisclosure();
+
+  const { instructor } = useAuth();
+  const isSchoolMember = !!(instructor as any)?.schoolId;
 
   const { data: packages, isLoading: packagesLoading } = usePackages();
   const createMutation = useCreatePackage();
@@ -166,8 +170,9 @@ export default function PackagesPage() {
       <VStack spacing={6} align="stretch">
         <PageHeader
           title="Packages"
-          description="Create and manage lesson packages for your learners"
+          description={isSchoolMember ? "Lesson packages provided by your school" : "Create and manage lesson packages for your learners"}
           actions={
+            !isSchoolMember ? (
             <Button
               leftIcon={<Plus size={16} />}
               colorScheme="primary"
@@ -175,8 +180,18 @@ export default function PackagesPage() {
             >
               Create Package
             </Button>
+            ) : undefined
           }
         />
+
+        {isSchoolMember && (
+          <Box p={3} bg="blue.50" borderRadius="md" display="flex" alignItems="center" gap={2}>
+            <Lock size={14} />
+            <Text fontSize="sm" color="blue.700">
+              These packages are managed by your school. Contact your school admin for changes.
+            </Text>
+          </Box>
+        )}
 
         {packagesLoading ? (
           <Skeleton height="400px" borderRadius="lg" />
@@ -214,6 +229,7 @@ export default function PackagesPage() {
                           </Box>
                         )}
                       </Box>
+                      {!isSchoolMember && (
                       <HStack spacing={1}>
                         <IconButton
                           aria-label="Edit package"
@@ -231,6 +247,7 @@ export default function PackagesPage() {
                           onClick={() => openDeleteModal(pkg)}
                         />
                       </HStack>
+                      )}
                     </Flex>
                   </CardHeader>
                   <CardBody pt={2}>
@@ -296,10 +313,13 @@ export default function PackagesPage() {
           <Card bg="bg.surface" border="1px solid" borderColor="border.subtle">
             <CardBody py={12}>
               <VStack spacing={4}>
-                <Text color="fg.muted">No packages yet</Text>
+                <Text color="fg.muted">{isSchoolMember ? "No school packages yet" : "No packages yet"}</Text>
                 <Text fontSize="sm" color="fg.muted" textAlign="center">
-                  Create lesson packages to offer bundle discounts to your learners.
+                  {isSchoolMember
+                    ? "Your school hasn't set up any packages yet. Contact your school admin."
+                    : "Create lesson packages to offer bundle discounts to your learners."}
                 </Text>
+                {!isSchoolMember && (
                 <Button
                   leftIcon={<Plus size={16} />}
                   colorScheme="primary"
@@ -307,6 +327,7 @@ export default function PackagesPage() {
                 >
                   Create Your First Package
                 </Button>
+                )}
               </VStack>
             </CardBody>
           </Card>

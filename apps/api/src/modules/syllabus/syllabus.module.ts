@@ -7,6 +7,7 @@ import {
   LearnerProgressSchema,
 } from "../../schemas/syllabus.schema";
 import { Lesson, LessonSchema } from "../../schemas/lesson.schema";
+import { Instructor, InstructorSchema } from "../../schemas/instructor.schema";
 import { SyllabusService } from "./syllabus.service";
 import { SyllabusController } from "./syllabus.controller";
 
@@ -16,6 +17,7 @@ import { SyllabusController } from "./syllabus.controller";
       { name: Syllabus.name, schema: SyllabusSchema },
       { name: LearnerProgress.name, schema: LearnerProgressSchema },
       { name: Lesson.name, schema: LessonSchema },
+      { name: Instructor.name, schema: InstructorSchema },
     ]),
   ],
   providers: [SyllabusService],

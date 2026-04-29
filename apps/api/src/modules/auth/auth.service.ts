@@ -7,7 +7,9 @@ import { Instructor, InstructorDocument } from "../../schemas/instructor.schema"
 import { Learner, LearnerDocument } from "../../schemas/learner.schema";
 import { Lesson, LessonDocument } from "../../schemas/lesson.schema";
 import { MagicLinkToken, MagicLinkTokenDocument } from "../../schemas/magic-link-token.schema";
-import { SignupDto, LoginDto, MagicLinkDto, VerifyMagicLinkDto } from "./dto/auth.dto";
+import { School, SchoolDocument } from "../../schemas/school.schema";
+import { SchoolInvitation, SchoolInvitationDocument } from "../../schemas/school-invitation.schema";
+import { SignupDto, LoginDto, MagicLinkDto, VerifyMagicLinkDto, SchoolSignupDto } from "./dto/auth.dto";
 import { CompleteProfileDto } from "./dto/complete-profile.dto";
 import { EmailService } from "../email/email.service";
 import { LicenceVerificationService } from "./licence-verification.service";
@@ -23,6 +25,10 @@ export class AuthService {
     private lessonModel: Model<LessonDocument>,
     @InjectModel(MagicLinkToken.name)
     private magicLinkTokenModel: Model<MagicLinkTokenDocument>,
+    @InjectModel(School.name)
+    private schoolModel: Model<SchoolDocument>,
+    @InjectModel(SchoolInvitation.name)
+    private schoolInvitationModel: Model<SchoolInvitationDocument>,
     private jwtService: JwtService,
     private emailService: EmailService,
     private licenceVerificationService: LicenceVerificationService,
@@ -341,11 +347,120 @@ export class AuthService {
     return this.jwtService.sign(payload);
   }
 
+  async schoolSignup(dto: SchoolSignupDto) {
+    // Check if admin email exists
+    const existingInstructor = await this.instructorModel.findOne({
+      email: dto.email.toLowerCase(),
+    });
+    if (existingInstructor) {
+      throw new ConflictException("Email already registered");
+    }
+
+    // Check if school email exists
+    const existingSchool = await this.schoolModel.findOne({
+      email: dto.schoolEmail.toLowerCase(),
+    });
+    if (existingSchool) {
+      throw new ConflictException("A school with this email already exists");
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(dto.password, 12);
+
+    // Create instructor (owner)
+    const instructor = await this.instructorModel.create({
+      email: dto.email.toLowerCase(),
+      password: hashedPassword,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      phone: dto.phone,
+      role: "owner",
+    });
+
+    // Create school
+    const school = await this.schoolModel.create({
+      name: dto.schoolName,
+      email: dto.schoolEmail.toLowerCase(),
+      phone: dto.schoolPhone,
+      address: dto.address,
+      businessRegistrationNumber: dto.businessRegistrationNumber,
+      ownerId: instructor._id,
+    });
+
+    // Link instructor to school
+    instructor.schoolId = school._id;
+    await instructor.save();
+
+    const token = this.generateToken(instructor);
+
+    return {
+      accessToken: token,
+      instructor: instructor.toJSON(),
+      school: school.toJSON(),
+    };
+  }
+
+  async acceptInvitation(token: string, instructorId: string | null) {
+    const invitation = await this.schoolInvitationModel.findOne({
+      token,
+      status: "pending",
+    });
+
+    if (!invitation) {
+      throw new NotFoundException("Invitation not found or already used");
+    }
+
+    if (invitation.expiresAt < new Date()) {
+      invitation.status = "expired";
+      await invitation.save();
+      throw new UnauthorizedException("Invitation has expired");
+    }
+
+    // If user is logged in, link them to the school
+    if (instructorId) {
+      const instructor = await this.instructorModel.findById(instructorId);
+      if (!instructor) {
+        throw new NotFoundException("Instructor not found");
+      }
+      if (instructor.schoolId) {
+        throw new ConflictException("You already belong to a school");
+      }
+
+      instructor.schoolId = invitation.schoolId;
+      instructor.role = invitation.role as any;
+      await instructor.save();
+
+      invitation.status = "accepted";
+      await invitation.save();
+
+      const jwtToken = this.generateToken(instructor);
+      return {
+        accessToken: jwtToken,
+        instructor: instructor.toJSON(),
+        status: "accepted",
+      };
+    }
+
+    // If not logged in, return invitation details for frontend to handle
+    const school = await this.schoolModel.findById(invitation.schoolId).select("name").lean();
+    return {
+      status: "needs-signup",
+      email: invitation.email,
+      schoolName: school?.name,
+      role: invitation.role,
+      token: invitation.token,
+    };
+  }
+
   private generateToken(instructor: InstructorDocument): string {
-    const payload = {
+    const payload: Record<string, any> = {
       sub: instructor._id.toString(),
       email: instructor.email,
     };
+    if (instructor.schoolId) {
+      payload.schoolId = instructor.schoolId.toString();
+      payload.role = instructor.role;
+    }
     return this.jwtService.sign(payload);
   }
 }

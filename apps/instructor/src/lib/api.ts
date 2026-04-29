@@ -3,6 +3,7 @@ import type {
   AuthResponse,
   LoginInput,
   SignupInput,
+  SchoolSignupInput,
   Instructor,
   Learner,
   CreateLearner,
@@ -150,6 +151,16 @@ export const authApi = {
 
   signup: async (data: SignupInput): Promise<AuthResponse> => {
     const res = await api.post<AuthResponse>("/auth/signup", data);
+    return res.data;
+  },
+
+  schoolSignup: async (data: SchoolSignupInput): Promise<AuthResponse & { school: any }> => {
+    const res = await api.post<AuthResponse & { school: any }>("/auth/school-signup", data);
+    return res.data;
+  },
+
+  acceptInvitation: async (token: string): Promise<any> => {
+    const res = await api.post("/auth/accept-invitation", { token });
     return res.data;
   },
 
@@ -660,6 +671,296 @@ export const syllabusApi = {
     topicOrder: number;
   }): Promise<LearnerProgressData> => {
     const res = await api.post<LearnerProgressData>("/syllabus/progress/reopen", data);
+    return res.data;
+  },
+};
+
+// ============================================================================
+// Schools
+// ============================================================================
+
+export interface SchoolData {
+  _id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  address?: {
+    line1?: string;
+    line2?: string;
+    city?: string;
+    postcode?: string;
+  };
+  logo?: string;
+  businessRegistrationNumber?: string;
+  ownerId: string;
+  settings?: {
+    defaultHourlyRate?: number;
+    defaultCurrency?: string;
+  };
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SchoolInstructor {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  role: string;
+  profileImage?: string;
+}
+
+export interface SchoolInvitationData {
+  _id: string;
+  schoolId: string;
+  email: string;
+  role: string;
+  status: string;
+  invitedBy: string;
+  token: string;
+  expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SchoolDashboardData {
+  instructorCount: number;
+  instructors: SchoolInstructor[];
+  totalLessons: number;
+  completedLessons: number;
+  totalRevenue: number;
+  activeLearnerCount: number;
+}
+
+export const schoolsApi = {
+  create: async (data: {
+    name: string;
+    email: string;
+    phone?: string;
+    address?: { line1?: string; line2?: string; city?: string; postcode?: string };
+    logo?: string;
+    businessRegistrationNumber?: string;
+  }): Promise<SchoolData> => {
+    const res = await api.post<SchoolData>("/schools", data);
+    return res.data;
+  },
+
+  getMine: async (): Promise<SchoolData | null> => {
+    const res = await api.get<SchoolData | null>("/schools/mine");
+    return res.data;
+  },
+
+  update: async (id: string, data: Partial<{
+    name: string;
+    email: string;
+    phone?: string;
+    address?: { line1?: string; line2?: string; city?: string; postcode?: string };
+    logo?: string;
+    businessRegistrationNumber?: string;
+  }>): Promise<SchoolData> => {
+    const res = await api.put<SchoolData>(`/schools/${id}`, data);
+    return res.data;
+  },
+
+  inviteInstructor: async (schoolId: string, data: {
+    email: string;
+    role?: 'admin' | 'instructor';
+  }): Promise<SchoolInvitationData> => {
+    const res = await api.post<SchoolInvitationData>(`/schools/${schoolId}/invitations`, data);
+    return res.data;
+  },
+
+  listInvitations: async (schoolId: string): Promise<SchoolInvitationData[]> => {
+    const res = await api.get<SchoolInvitationData[]>(`/schools/${schoolId}/invitations`);
+    return res.data;
+  },
+
+  cancelInvitation: async (schoolId: string, invitationId: string): Promise<void> => {
+    await api.delete(`/schools/${schoolId}/invitations/${invitationId}`);
+  },
+
+  listInstructors: async (schoolId: string): Promise<SchoolInstructor[]> => {
+    const res = await api.get<SchoolInstructor[]>(`/schools/${schoolId}/instructors`);
+    return res.data;
+  },
+
+  updateInstructorRole: async (schoolId: string, instructorId: string, role: string): Promise<void> => {
+    await api.put(`/schools/${schoolId}/instructors/${instructorId}/role`, { role });
+  },
+
+  removeInstructor: async (schoolId: string, instructorId: string): Promise<void> => {
+    await api.delete(`/schools/${schoolId}/instructors/${instructorId}`);
+  },
+
+  getInstructorDetail: async (schoolId: string, instructorId: string): Promise<any> => {
+    const res = await api.get<any>(`/schools/${schoolId}/instructors/${instructorId}/detail`);
+    return res.data;
+  },
+
+  getInstructorLearners: async (schoolId: string, instructorId: string): Promise<any[]> => {
+    const res = await api.get<any[]>(`/schools/${schoolId}/instructors/${instructorId}/learners`);
+    return res.data;
+  },
+
+  getInstructorLearnerDetail: async (schoolId: string, instructorId: string, learnerId: string): Promise<any> => {
+    const res = await api.get<any>(`/schools/${schoolId}/instructors/${instructorId}/learners/${learnerId}`);
+    return res.data;
+  },
+
+  getDashboard: async (schoolId: string): Promise<SchoolDashboardData> => {
+    const res = await api.get<SchoolDashboardData>(`/schools/${schoolId}/dashboard`);
+    return res.data;
+  },
+
+  // School-level packages
+  listPackages: async (schoolId: string): Promise<any[]> => {
+    const res = await api.get<any[]>(`/schools/${schoolId}/packages`);
+    return res.data;
+  },
+  createPackage: async (schoolId: string, data: any): Promise<any> => {
+    const res = await api.post<any>(`/schools/${schoolId}/packages`, data);
+    return res.data;
+  },
+  updatePackage: async (schoolId: string, packageId: string, data: any): Promise<any> => {
+    const res = await api.put<any>(`/schools/${schoolId}/packages/${packageId}`, data);
+    return res.data;
+  },
+  deletePackage: async (schoolId: string, packageId: string): Promise<void> => {
+    await api.delete(`/schools/${schoolId}/packages/${packageId}`);
+  },
+
+  // School-level syllabus
+  listSyllabus: async (schoolId: string): Promise<any[]> => {
+    const res = await api.get<any[]>(`/schools/${schoolId}/syllabus`);
+    return res.data;
+  },
+  createSyllabus: async (schoolId: string, data: any): Promise<any> => {
+    const res = await api.post<any>(`/schools/${schoolId}/syllabus`, data);
+    return res.data;
+  },
+  updateSyllabus: async (schoolId: string, syllabusId: string, data: any): Promise<any> => {
+    const res = await api.put<any>(`/schools/${schoolId}/syllabus/${syllabusId}`, data);
+    return res.data;
+  },
+  deleteSyllabus: async (schoolId: string, syllabusId: string): Promise<void> => {
+    await api.delete(`/schools/${schoolId}/syllabus/${syllabusId}`);
+  },
+
+  // School policies
+  getPolicies: async (schoolId: string): Promise<any> => {
+    const res = await api.get<any>(`/schools/${schoolId}/policies`);
+    return res.data;
+  },
+  updatePolicies: async (schoolId: string, data: any): Promise<any> => {
+    const res = await api.put<any>(`/schools/${schoolId}/policies`, data);
+    return res.data;
+  },
+};
+
+// ============================================================================
+// Vehicles
+// ============================================================================
+
+export interface VehicleData {
+  _id: string;
+  schoolId: string;
+  make: string;
+  model: string;
+  year?: number;
+  registration: string;
+  transmission: string;
+  color?: string;
+  imageUrl?: string;
+  hasLearnerDualControls: boolean;
+  status: string;
+  insuranceExpiry?: string;
+  motExpiry?: string;
+  notes?: string;
+  assignments?: Array<{
+    _id: string;
+    instructorId: { _id: string; firstName: string; lastName: string; email: string };
+    isPrimary: boolean;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VehicleAssignmentData {
+  _id: string;
+  vehicleId: { _id: string; make: string; model: string; registration: string; transmission: string; status: string };
+  instructorId: { _id: string; firstName: string; lastName: string; email: string };
+  isPrimary: boolean;
+  createdAt: string;
+}
+
+export const vehiclesApi = {
+  create: async (data: {
+    make: string;
+    model: string;
+    year?: number;
+    registration: string;
+    transmission?: string;
+    color?: string;
+    imageUrl?: string;
+    hasLearnerDualControls?: boolean;
+    insuranceExpiry?: string;
+    motExpiry?: string;
+    notes?: string;
+  }): Promise<VehicleData> => {
+    const res = await api.post<VehicleData>("/vehicles", data);
+    return res.data;
+  },
+
+  getAll: async (): Promise<VehicleData[]> => {
+    const res = await api.get<VehicleData[]>("/vehicles");
+    return res.data;
+  },
+
+  getById: async (id: string): Promise<VehicleData> => {
+    const res = await api.get<VehicleData>(`/vehicles/${id}`);
+    return res.data;
+  },
+
+  getMine: async (): Promise<VehicleData[]> => {
+    const res = await api.get<VehicleData[]>("/vehicles/mine");
+    return res.data;
+  },
+
+  update: async (id: string, data: Partial<{
+    make: string;
+    model: string;
+    year?: number;
+    registration: string;
+    transmission?: string;
+    color?: string;
+    imageUrl?: string;
+    hasLearnerDualControls?: boolean;
+    status?: string;
+    insuranceExpiry?: string;
+    motExpiry?: string;
+    notes?: string;
+  }>): Promise<VehicleData> => {
+    const res = await api.put<VehicleData>(`/vehicles/${id}`, data);
+    return res.data;
+  },
+
+  remove: async (id: string): Promise<void> => {
+    await api.delete(`/vehicles/${id}`);
+  },
+
+  assign: async (vehicleId: string, data: { instructorId: string; isPrimary?: boolean }) => {
+    const res = await api.post(`/vehicles/${vehicleId}/assign`, data);
+    return res.data;
+  },
+
+  unassign: async (vehicleId: string, instructorId: string): Promise<void> => {
+    await api.delete(`/vehicles/${vehicleId}/assign/${instructorId}`);
+  },
+
+  listAssignments: async (): Promise<VehicleAssignmentData[]> => {
+    const res = await api.get<VehicleAssignmentData[]>("/vehicles/assignments");
     return res.data;
   },
 };

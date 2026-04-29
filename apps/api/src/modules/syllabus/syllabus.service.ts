@@ -7,6 +7,7 @@ import {
   LearnerProgress,
   LearnerProgressDocument,
 } from "../../schemas/syllabus.schema";
+import { Instructor, InstructorDocument } from "../../schemas/instructor.schema";
 import { Lesson, LessonDocument } from "../../schemas/lesson.schema";
 import {
   CreateSyllabusDto,
@@ -23,7 +24,13 @@ export class SyllabusService {
     @InjectModel(Syllabus.name) private syllabusModel: Model<SyllabusDocument>,
     @InjectModel(LearnerProgress.name) private progressModel: Model<LearnerProgressDocument>,
     @InjectModel(Lesson.name) private lessonModel: Model<LessonDocument>,
+    @InjectModel(Instructor.name) private instructorModel: Model<InstructorDocument>,
   ) {}
+
+  private async getSchoolId(instructorId: string): Promise<Types.ObjectId | null> {
+    const inst = await this.instructorModel.findById(instructorId).select('schoolId').lean();
+    return inst?.schoolId ? new Types.ObjectId(inst.schoolId as any) : null;
+  }
 
   // ============================================================================
   // Syllabus CRUD
@@ -47,8 +54,13 @@ export class SyllabusService {
   }
 
   async findAll(instructorId: string) {
+    const oid = new Types.ObjectId(instructorId);
+    const schoolId = await this.getSchoolId(instructorId);
+    const filter = schoolId
+      ? { $or: [{ instructorId: oid }, { schoolId }] }
+      : { instructorId: oid };
     return this.syllabusModel
-      .find({ instructorId: new Types.ObjectId(instructorId) })
+      .find(filter)
       .sort({ isDefault: -1, createdAt: -1 });
   }
 
@@ -67,6 +79,17 @@ export class SyllabusService {
       instructorId: oid,
       isDefault: true,
     });
+
+    // Check school-level default if instructor doesn't have one
+    if (!syllabus) {
+      const schoolId = await this.getSchoolId(instructorId);
+      if (schoolId) {
+        syllabus = await this.syllabusModel.findOne({
+          schoolId,
+          isDefault: true,
+        });
+      }
+    }
 
     // Auto-seed the default DVSA syllabus if none exists
     if (!syllabus) {

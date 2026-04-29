@@ -29,6 +29,9 @@ export class Lesson {
   @Prop({ type: Types.ObjectId, ref: "Learner", required: true, index: true })
   learnerId: Types.ObjectId;
 
+  @Prop({ type: Types.ObjectId, ref: "Vehicle" })
+  vehicleId?: Types.ObjectId;
+
   @Prop({ required: true })
   startTime: Date;
 

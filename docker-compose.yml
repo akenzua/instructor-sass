@@ -222,6 +222,7 @@ services:
     environment:
       NODE_ENV: development
       NEXT_PUBLIC_API_URL: http://localhost:3000/api
+      API_URL: http://api-dev:3000/api
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
       NEXT_PUBLIC_IDEAL_POSTCODES_API_KEY: ${IDEAL_POSTCODES_API_KEY}
     depends_on:

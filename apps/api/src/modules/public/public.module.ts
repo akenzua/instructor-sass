@@ -18,6 +18,7 @@ import { Package, PackageSchema } from "../../schemas/package.schema";
 import { Lesson, LessonSchema } from "../../schemas/lesson.schema";
 import { Learner, LearnerSchema } from "../../schemas/learner.schema";
 import { Payment, PaymentSchema } from "../../schemas/payment.schema";
+import { School, SchoolSchema } from "../../schemas/school.schema";
 import { AuthModule } from "../auth/auth.module";
 import { EmailModule } from "../email/email.module";
 import { PaymentsModule } from "../payments/payments.module";
@@ -32,6 +33,7 @@ import { PaymentsModule } from "../payments/payments.module";
       { name: Lesson.name, schema: LessonSchema },
       { name: Learner.name, schema: LearnerSchema },
       { name: Payment.name, schema: PaymentSchema },
+      { name: School.name, schema: SchoolSchema },
     ]),
     ConfigModule,
     forwardRef(() => AuthModule),

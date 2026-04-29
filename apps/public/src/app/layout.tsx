@@ -3,17 +3,22 @@ import { Providers } from './providers';
 
 export const metadata: Metadata = {
   title: {
-    default: 'InDrive - Find Driving Instructors Near You',
+    default: 'InDrive — Build a Fully-Booked Driving Instruction Business',
     template: '%s | InDrive',
   },
   description:
-    'Book driving lessons with certified instructors in your area. View availability, prices, packages, and reviews. Start learning to drive today!',
+    'InDrive helps UK driving instructors fill their diary with motivated learners, automate admin, and get paid — free forever. Learners: find certified ADIs near you with real-time availability and transparent pricing.',
   keywords: [
-    'driving lessons',
-    'driving instructor',
+    'driving instructor software UK',
+    'ADI booking platform',
+    'driving instructor app',
+    'find driving instructor near me',
+    'driving lessons near me',
+    'ADI diary management',
+    'driving school software',
+    'book driving lessons online',
     'learn to drive',
-    'driving school',
-    'book driving lessons',
+    'driving instructor marketplace',
   ],
   robots: {
     index: true,

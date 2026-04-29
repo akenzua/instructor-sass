@@ -227,6 +227,12 @@ export function InstructorPage({
                 <Heading as="h1" size="lg" color="white" fontWeight="bold">
                   {fullName}
                 </Heading>
+                {(instructor as any).schoolId?.name && (
+                  <HStack color="whiteAlpha.800" fontSize="sm">
+                    <Icon as={Shield} boxSize={4} />
+                    <Text fontWeight="medium">{(instructor as any).schoolId.name}</Text>
+                  </HStack>
+                )}
                 {location && (
                   <HStack color="whiteAlpha.800" fontSize="sm">
                     <Icon as={MapPin} boxSize={4} />

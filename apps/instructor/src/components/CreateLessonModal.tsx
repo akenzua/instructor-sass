@@ -27,6 +27,8 @@ import {
 } from "@chakra-ui/react";
 import { format, addMinutes, parse } from "date-fns";
 import { useCreateLesson, useLearners } from "@/hooks";
+import { useMyVehicles } from "@/hooks/queries";
+import { useAuth } from "@/lib/auth";
 
 interface CreateLessonModalProps {
   isOpen: boolean;
@@ -42,6 +44,7 @@ interface FormData {
   price: number;
   pickupLocation: string;
   notes: string;
+  vehicleId: string;
 }
 
 interface FormErrors {
@@ -65,11 +68,14 @@ export function CreateLessonModal({
   selectedDate,
 }: CreateLessonModalProps) {
   const toast = useToast();
+  const { instructor } = useAuth();
   const createMutation = useCreateLesson();
   const { data: learnersData, isLoading: learnersLoading } = useLearners({
     limit: 100,
     status: "active",
   });
+  const isSchoolMember = !!(instructor as any)?.schoolId;
+  const { data: myVehicles } = useMyVehicles();
 
   const [formData, setFormData] = useState<FormData>({
     learnerId: "",
@@ -79,6 +85,7 @@ export function CreateLessonModal({
     price: 45,
     pickupLocation: "",
     notes: "",
+    vehicleId: "",
   });
   const [errors, setErrors] = useState<FormErrors>({});
 
@@ -133,6 +140,7 @@ export function CreateLessonModal({
         price: formData.price,
         pickupLocation: formData.pickupLocation || undefined,
         notes: formData.notes || undefined,
+        vehicleId: formData.vehicleId || undefined,
       });
 
       toast({
@@ -162,6 +170,7 @@ export function CreateLessonModal({
       price: 45,
       pickupLocation: "",
       notes: "",
+      vehicleId: "",
     });
     setErrors({});
     onClose();
@@ -253,6 +262,26 @@ export function CreateLessonModal({
                 ))}
               </Select>
             </FormControl>
+
+            {/* Vehicle (school members only) */}
+            {isSchoolMember && myVehicles && myVehicles.length > 0 && (
+              <FormControl>
+                <FormLabel>Vehicle</FormLabel>
+                <Select
+                  placeholder="Select a vehicle (optional)"
+                  value={formData.vehicleId}
+                  onChange={(e) =>
+                    setFormData({ ...formData, vehicleId: e.target.value })
+                  }
+                >
+                  {myVehicles.map((v: any) => (
+                    <option key={v._id} value={v._id}>
+                      {v.make} {v.model} — {v.registration}
+                    </option>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
 
             {/* Price */}
             <FormControl isInvalid={!!errors.price}>

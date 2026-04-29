@@ -43,6 +43,10 @@ export class CreateLessonDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsMongoId()
+  @IsOptional()
+  vehicleId?: string;
 }
 
 export class UpdateLessonDto {

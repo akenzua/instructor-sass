@@ -2,6 +2,7 @@ import { Module, forwardRef } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
 import { Lesson, LessonSchema } from "../../schemas/lesson.schema";
 import { Instructor, InstructorSchema } from "../../schemas/instructor.schema";
+import { School, SchoolSchema } from "../../schemas/school.schema";
 import { Payment, PaymentSchema } from "../../schemas/payment.schema";
 import { Learner, LearnerSchema } from "../../schemas/learner.schema";
 import { LessonsService } from "./lessons.service";
@@ -13,6 +14,7 @@ import { LearnersModule } from "../learners/learners.module";
     MongooseModule.forFeature([
       { name: Lesson.name, schema: LessonSchema },
       { name: Instructor.name, schema: InstructorSchema },
+      { name: School.name, schema: SchoolSchema },
       { name: Payment.name, schema: PaymentSchema },
       { name: Learner.name, schema: LearnerSchema },
     ]),

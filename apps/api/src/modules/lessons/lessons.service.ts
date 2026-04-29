@@ -10,6 +10,7 @@ import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
 import { Lesson, LessonDocument } from "../../schemas/lesson.schema";
 import { Instructor, InstructorDocument } from "../../schemas/instructor.schema";
+import { School, SchoolDocument } from "../../schemas/school.schema";
 import { Payment, PaymentDocument } from "../../schemas/payment.schema";
 import { Learner, LearnerDocument } from "../../schemas/learner.schema";
 import { CreateLessonDto, UpdateLessonDto, LessonQueryDto } from "./dto/lesson.dto";
@@ -22,6 +23,8 @@ export class LessonsService {
     private lessonModel: Model<LessonDocument>,
     @InjectModel(Instructor.name)
     private instructorModel: Model<InstructorDocument>,
+    @InjectModel(School.name)
+    private schoolModel: Model<SchoolDocument>,
     @InjectModel(Payment.name)
     private paymentModel: Model<PaymentDocument>,
     @InjectModel(Learner.name)
@@ -29,6 +32,19 @@ export class LessonsService {
     @Inject(forwardRef(() => LearnersService))
     private learnersService: LearnersService
   ) {}
+
+  /**
+   * Get the effective cancellation policy for an instructor.
+   * Falls back to school policy if instructor doesn't have one and belongs to a school.
+   */
+  private async getEffectiveCancellationPolicy(instructor: InstructorDocument | null): Promise<any> {
+    if (instructor?.cancellationPolicy) return instructor.cancellationPolicy;
+    if (instructor?.schoolId) {
+      const school = await this.schoolModel.findById(instructor.schoolId).select('cancellationPolicy').lean();
+      return school?.cancellationPolicy || null;
+    }
+    return null;
+  }
 
   async create(instructorId: string, dto: CreateLessonDto): Promise<LessonDocument> {
     // Find the learner (may or may not be assigned to an instructor yet)
@@ -52,6 +68,7 @@ export class LessonsService {
       ...dto,
       instructorId: new Types.ObjectId(instructorId),
       learnerId: new Types.ObjectId(dto.learnerId),
+      ...(dto.vehicleId && { vehicleId: new Types.ObjectId(dto.vehicleId) }),
     });
 
     // Increment learner's total lessons
@@ -114,6 +131,7 @@ export class LessonsService {
               pickupLocation: 1,
               dropoffLocation: 1,
               notes: 1,
+              vehicleId: 1,
               createdAt: 1,
               updatedAt: 1,
               "learner._id": 1,
@@ -192,9 +210,9 @@ export class LessonsService {
       throw new BadRequestException("Only scheduled lessons can be cancelled");
     }
 
-    // Get instructor's cancellation policy
+    // Get effective cancellation policy (instructor's own or inherited from school)
     const instructor = await this.instructorModel.findById(instructorId);
-    const policy = instructor?.cancellationPolicy;
+    const policy = await this.getEffectiveCancellationPolicy(instructor);
 
     // Calculate cancellation fee based on policy and who cancelled
     const { fee, refund } = this.calculateCancellationFee(
@@ -288,9 +306,9 @@ export class LessonsService {
       throw new BadRequestException("Only scheduled lessons can be cancelled");
     }
 
-    // Get instructor's cancellation policy
+    // Get effective cancellation policy (instructor's own or inherited from school)
     const instructor = await this.instructorModel.findById(lesson.instructorId);
-    const policy = instructor?.cancellationPolicy;
+    const policy = await this.getEffectiveCancellationPolicy(instructor);
 
     // Check if learner cancellation is allowed
     if (policy && !policy.allowLearnerCancellation) {
@@ -397,7 +415,7 @@ export class LessonsService {
     }
 
     const instructor = await this.instructorModel.findById(lesson.instructorId);
-    const policy = instructor?.cancellationPolicy;
+    const policy = await this.getEffectiveCancellationPolicy(instructor);
 
     // Get current learner balance
     const learner = await this.learnersService.findByIdAny(learnerId);
@@ -609,6 +627,10 @@ export class LessonsService {
   async getDashboardStats(instructorId: string) {
     const now = new Date();
     const instructorObjId = new Types.ObjectId(instructorId);
+
+    // Check if instructor belongs to a school (revenue hidden)
+    const instructor = await this.instructorModel.findById(instructorId).select('schoolId').lean();
+    const isSchoolMember = !!instructor?.schoolId;
 
     // Time boundaries
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -910,16 +932,19 @@ export class LessonsService {
       weekLessons,
       activeLearners,
       totalLearners,
-      monthlyEarnings: thisMonthTotal,
-      earningsChange,
-      unpaidLessons: unpaid.count,
-      unpaidAmount: unpaid.amount,
+      monthlyEarnings: isSchoolMember ? 0 : thisMonthTotal,
+      earningsChange: isSchoolMember ? 0 : earningsChange,
+      unpaidLessons: isSchoolMember ? 0 : unpaid.count,
+      unpaidAmount: isSchoolMember ? 0 : unpaid.amount,
+      isSchoolMember,
 
       // Weekly earnings trend (12 weeks)
-      weeklyTrend,
+      weeklyTrend: isSchoolMember ? [] : weeklyTrend,
 
       // Lesson type breakdown
-      lessonTypes,
+      lessonTypes: isSchoolMember
+        ? lessonTypes.map((t: any) => ({ ...t, revenue: 0 }))
+        : lessonTypes,
 
       // Completion stats (last 3 months)
       completionStats: {
@@ -939,10 +964,12 @@ export class LessonsService {
       upcomingTestDates,
 
       // Recent activity
-      recentActivity,
+      recentActivity: isSchoolMember
+        ? recentActivity.map((a: any) => ({ ...a, price: undefined }))
+        : recentActivity,
 
       // Monthly earnings history (6 months)
-      monthlyHistory: this.buildMonthlyHistory(monthlyHistoryRaw, sixMonthsAgo, now),
+      monthlyHistory: isSchoolMember ? [] : this.buildMonthlyHistory(monthlyHistoryRaw, sixMonthsAgo, now),
     };
   }
 

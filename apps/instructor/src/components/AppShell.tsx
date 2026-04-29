@@ -31,6 +31,11 @@ import {
   BookOpen,
   Package,
   ClipboardList,
+  Building2,
+  Car,
+  UserCog,
+  LayoutDashboard,
+  Shield,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { NotificationBell } from "./NotificationBell";
@@ -41,15 +46,31 @@ interface NavItem {
   href: string;
 }
 
-const navItems: NavItem[] = [
+// Base nav items every instructor sees
+const coreNavItems: NavItem[] = [
   { label: "Dashboard", icon: <Home size={20} />, href: "/" },
   { label: "Calendar", icon: <Calendar size={20} />, href: "/calendar" },
   { label: "Lessons", icon: <BookOpen size={20} />, href: "/lessons" },
   { label: "Learners", icon: <Users size={20} />, href: "/learners" },
-  { label: "Syllabus", icon: <ClipboardList size={20} />, href: "/syllabus" },
   { label: "Availability", icon: <Clock size={20} />, href: "/availability" },
-  { label: "Packages", icon: <Package size={20} />, href: "/packages" },
   { label: "Settings", icon: <Settings size={20} />, href: "/settings" },
+];
+
+// Solo instructors also see these (school instructors inherit from school)
+const soloOnlyNavItems: NavItem[] = [
+  { label: "Syllabus", icon: <ClipboardList size={20} />, href: "/syllabus" },
+  { label: "Packages", icon: <Package size={20} />, href: "/packages" },
+];
+
+// School admin section (owner/admin only)
+const schoolAdminNavItems: NavItem[] = [
+  { label: "School Dashboard", icon: <LayoutDashboard size={20} />, href: "/school/dashboard" },
+  { label: "Instructors", icon: <UserCog size={20} />, href: "/school/team" },
+  { label: "Fleet", icon: <Car size={20} />, href: "/school/fleet" },
+  { label: "School Syllabus", icon: <ClipboardList size={20} />, href: "/school/syllabus" },
+  { label: "School Packages", icon: <Package size={20} />, href: "/school/packages" },
+  { label: "Policies", icon: <Shield size={20} />, href: "/school/policies" },
+  { label: "School Settings", icon: <Building2 size={20} />, href: "/school" },
 ];
 
 interface AppShellProps {
@@ -65,6 +86,26 @@ export function AppShell({ children }: AppShellProps) {
   const bgSidebar = useColorModeValue("white", "gray.800");
   const bgMain = useColorModeValue("gray.50", "gray.900");
   const borderColor = useColorModeValue("gray.200", "gray.700");
+
+  const isSchoolMember = !!(instructor as any)?.schoolId;
+  const isSchoolAdmin = isSchoolMember && ["owner", "admin"].includes((instructor as any)?.role);
+  const isTeaching = !!(instructor as any)?.isTeaching;
+
+  // Build nav based on persona:
+  // - Owner/Admin NOT teaching → school admin nav only
+  // - Owner/Admin + teaching → school admin nav + core instructor nav + read-only syllabus/packages
+  // - Regular school instructor → core nav + read-only syllabus/packages
+  // - Solo instructor → core + solo-only nav (full CRUD)
+  let instructorNavItems: NavItem[];
+  if (isSchoolAdmin && !isTeaching) {
+    // Admin-only persona: no instructor nav at all
+    instructorNavItems = [];
+  } else if (isSchoolMember) {
+    // School instructors see core nav + read-only syllabus/packages
+    instructorNavItems = [...coreNavItems.slice(0, -1), ...soloOnlyNavItems, coreNavItems[coreNavItems.length - 1]];
+  } else {
+    instructorNavItems = [...coreNavItems.slice(0, -1), ...soloOnlyNavItems, coreNavItems[coreNavItems.length - 1]];
+  }
 
   const handleNavigation = (href: string) => {
     router.push(href);
@@ -92,15 +133,18 @@ export function AppShell({ children }: AppShellProps) {
           <VStack spacing={8} w="full">
             <HStack px={4} py={2} justify="space-between" w="full">
               <Text fontSize="xl" fontWeight="bold" color="primary.500">
-                Instructor
+                {isSchoolAdmin && !isTeaching ? "School Admin" : "Instructor"}
               </Text>
               <NotificationBell />
             </HStack>
 
             {/* Navigation Items */}
+            {instructorNavItems.length > 0 && (
             <VStack spacing={1} w="full" px={2}>
-              {navItems.map((item) => {
-                const isActive = pathname === item.href;
+              {instructorNavItems.map((item) => {
+                const isActive = item.href === "/"
+                  ? pathname === "/"
+                  : pathname === item.href || pathname.startsWith(item.href + "/");
                 return (
                   <Box
                     key={item.href}
@@ -135,6 +179,53 @@ export function AppShell({ children }: AppShellProps) {
                 );
               })}
             </VStack>
+            )}
+
+            {/* School Admin Section */}
+            {isSchoolAdmin && (
+              <>
+                {instructorNavItems.length > 0 && (
+                <Box px={4} pt={4} pb={1}>
+                  <Text fontSize="xs" fontWeight="bold" color="text.muted" textTransform="uppercase" letterSpacing="wider">
+                    School Admin
+                  </Text>
+                </Box>
+                )}
+                <VStack spacing={1} w="full" px={2}>
+                  {schoolAdminNavItems.map((item) => {
+                    const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                    return (
+                      <Box
+                        key={item.href}
+                        as="button"
+                        onClick={() => handleNavigation(item.href)}
+                        w="full"
+                        px={4}
+                        py={2.5}
+                        borderRadius="md"
+                        bg={isActive ? "primary.50" : "transparent"}
+                        color={isActive ? "primary.600" : "text.default"}
+                        _hover={{ bg: isActive ? "primary.50" : "gray.100" }}
+                        _dark={{
+                          bg: isActive ? "primary.900" : "transparent",
+                          color: isActive ? "primary.200" : "text.default",
+                          _hover: { bg: isActive ? "primary.900" : "gray.700" },
+                        }}
+                        transition="all 0.2s"
+                        textAlign="left"
+                      >
+                        <HStack spacing={3}>
+                          {item.icon}
+                          <Text fontSize="sm" fontWeight={isActive ? "semibold" : "medium"}>
+                            {item.label}
+                          </Text>
+                        </HStack>
+                      </Box>
+                    );
+                  })}
+                </VStack>
+              </>
+            )}
           </VStack>
 
           {/* Bottom Section */}
@@ -213,7 +304,7 @@ export function AppShell({ children }: AppShellProps) {
       >
         <HStack justify="space-between">
           <Text fontSize="lg" fontWeight="bold" color="primary.500">
-            Instructor
+            {isSchoolAdmin && !isTeaching ? "School Admin" : "Instructor"}
           </Text>
           <HStack spacing={2}>
             <NotificationBell />
@@ -233,7 +324,21 @@ export function AppShell({ children }: AppShellProps) {
                 size="sm"
               />
               <MenuList>
-                {navItems.map((item) => (
+                {isSchoolAdmin && (
+                  <>
+                    {schoolAdminNavItems.map((item) => (
+                      <MenuItem
+                        key={item.href}
+                        icon={item.icon as any}
+                        onClick={() => handleNavigation(item.href)}
+                      >
+                        {item.label}
+                      </MenuItem>
+                    ))}
+                    {instructorNavItems.length > 0 && <MenuDivider />}
+                  </>
+                )}
+                {instructorNavItems.map((item) => (
                   <MenuItem
                     key={item.href}
                     icon={item.icon as any}

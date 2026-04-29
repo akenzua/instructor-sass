@@ -147,9 +147,9 @@ export default function LoginPage() {
             </Box>
 
             <VStack spacing={2} textAlign="center">
-              <Heading size="lg">Welcome Back</Heading>
+              <Heading size="lg">Welcome back</Heading>
               <Text color="text.muted">
-                Enter your email to receive a magic link
+                Enter your email and we&apos;ll send you a secure sign-in link — no password needed
               </Text>
             </VStack>
 

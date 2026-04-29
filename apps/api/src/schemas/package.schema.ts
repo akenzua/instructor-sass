@@ -7,8 +7,11 @@ export type PackageDocument = Package & Document;
 export class Package {
   _id: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: "Instructor", required: true, index: true })
+  @Prop({ type: Types.ObjectId, ref: "Instructor", index: true })
   instructorId: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: "School", index: true })
+  schoolId?: Types.ObjectId;
 
   @Prop({ required: true, trim: true })
   name: string;

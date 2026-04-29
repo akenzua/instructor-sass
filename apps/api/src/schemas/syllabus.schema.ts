@@ -36,8 +36,11 @@ export class SyllabusTopic {
 export class Syllabus {
   _id: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: "Instructor", required: true, index: true })
+  @Prop({ type: Types.ObjectId, ref: "Instructor", index: true })
   instructorId: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: "School", index: true })
+  schoolId?: Types.ObjectId;
 
   @Prop({ required: true })
   name: string;

@@ -11,6 +11,8 @@ import { Instructor, InstructorSchema } from "../../schemas/instructor.schema";
 import { Learner, LearnerSchema } from "../../schemas/learner.schema";
 import { Lesson, LessonSchema } from "../../schemas/lesson.schema";
 import { MagicLinkToken, MagicLinkTokenSchema } from "../../schemas/magic-link-token.schema";
+import { School, SchoolSchema } from "../../schemas/school.schema";
+import { SchoolInvitation, SchoolInvitationSchema } from "../../schemas/school-invitation.schema";
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { MagicLinkToken, MagicLinkTokenSchema } from "../../schemas/magic-link-t
       { name: Learner.name, schema: LearnerSchema },
       { name: Lesson.name, schema: LessonSchema },
       { name: MagicLinkToken.name, schema: MagicLinkTokenSchema },
+      { name: School.name, schema: SchoolSchema },
+      { name: SchoolInvitation.name, schema: SchoolInvitationSchema },
     ]),
     PassportModule.register({ defaultStrategy: "jwt" }),
     JwtModule.registerAsync({

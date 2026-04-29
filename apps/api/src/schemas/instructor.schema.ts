@@ -220,6 +220,17 @@ export class Instructor {
   @Prop()
   lastActiveAt?: Date;
 
+  // === SCHOOL / MULTI-INSTRUCTOR ===
+
+  @Prop({ type: Types.ObjectId, ref: "School", index: true })
+  schoolId?: Types.ObjectId;
+
+  @Prop({ type: String, enum: ["owner", "admin", "instructor"], default: null })
+  role?: string;
+
+  @Prop({ default: false })
+  isTeaching?: boolean;
+
   // === GEOLOCATION ===
   // Primary location as GeoJSON for geospatial queries
   @Prop({ type: Object })
@@ -235,6 +246,7 @@ export const InstructorSchema = SchemaFactory.createForClass(Instructor);
 InstructorSchema.index({ email: 1 });
 InstructorSchema.index({ username: 1 }, { unique: true, sparse: true });
 InstructorSchema.index({ isPublicProfileEnabled: 1 });
+InstructorSchema.index({ schoolId: 1, role: 1 });
 InstructorSchema.index({ primaryLocation: "text", "serviceAreas.name": "text" });
 // Geospatial index for location-based search
 InstructorSchema.index({ geoLocation: "2dsphere" });

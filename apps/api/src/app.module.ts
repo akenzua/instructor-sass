@@ -16,6 +16,8 @@ import { RemindersModule } from "./modules/reminders/reminders.module";
 import { CalendarModule } from "./modules/calendar/calendar.module";
 import { SyllabusModule } from "./modules/syllabus/syllabus.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
+import { SchoolsModule } from "./modules/schools/schools.module";
+import { VehiclesModule } from "./modules/vehicles/vehicles.module";
 import { HealthController } from "./health.controller";
 
 @Module({
@@ -46,6 +48,8 @@ import { HealthController } from "./health.controller";
     CalendarModule,
     SyllabusModule,
     NotificationsModule,
+    SchoolsModule,
+    VehiclesModule,
   ],
   controllers: [HealthController],
 })

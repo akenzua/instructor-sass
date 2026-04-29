@@ -12,12 +12,25 @@ export interface PopulatedInstructor {
 }
 
 /**
+ * Represents a populated vehicle reference from Mongoose.
+ */
+export interface PopulatedVehicle {
+  _id: string;
+  make: string;
+  model: string;
+  registration: string;
+  transmission: string;
+  color?: string;
+}
+
+/**
  * A lesson with potentially populated instructor data.
  * The API may return instructorId as either a string (ObjectId)
  * or as a populated instructor object.
  */
 export type PopulatedLesson = Omit<Lesson, "instructorId"> & {
   instructorId: string | PopulatedInstructor;
+  vehicleId?: string | PopulatedVehicle;
 };
 
 /**
@@ -31,5 +44,18 @@ export function isPopulatedInstructor(
     typeof instructor === "object" &&
     instructor !== null &&
     "firstName" in instructor
+  );
+}
+
+/**
+ * Type guard to check if a vehicle field has been populated.
+ */
+export function isPopulatedVehicle(
+  vehicle: string | PopulatedVehicle | undefined
+): vehicle is PopulatedVehicle {
+  return (
+    typeof vehicle === "object" &&
+    vehicle !== null &&
+    "make" in vehicle
   );
 }

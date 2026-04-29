@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Box,
   Card,
@@ -112,16 +114,29 @@ function SkeletonCard({ h = '300px' }: { h?: string }) {
 
 export default function DashboardPage() {
   const { instructor } = useAuth();
+  const router = useRouter();
   const { data: stats, isLoading } = useDashboardStats();
+  const isSchoolMember = stats?.isSchoolMember ?? !!(instructor as any)?.schoolId;
+
+  // Redirect non-teaching owner/admin to school dashboard
+  const inst = instructor as any;
+  const isAdminOnly = inst?.schoolId && ['owner', 'admin'].includes(inst?.role) && !inst?.isTeaching;
+  useEffect(() => {
+    if (isAdminOnly) {
+      router.replace('/school/dashboard');
+    }
+  }, [isAdminOnly, router]);
+
+  if (isAdminOnly) return null;
 
   return (
     <VStack spacing={6} align="stretch">
       <PageHeader title={`Welcome back, ${instructor?.firstName ?? ''}!`} />
 
       {/* ── KPI Strip ─────────────────────────────────────────────────────── */}
-      <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} spacing={4}>
+      <SimpleGrid columns={{ base: 1, sm: 2, lg: isSchoolMember ? 3 : 4 }} spacing={4}>
         {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => (
+          Array.from({ length: isSchoolMember ? 3 : 4 }).map((_, i) => (
             <Skeleton key={i} height="120px" borderRadius="lg" />
           ))
         ) : (
@@ -144,26 +159,28 @@ export default function DashboardPage() {
               value={`${stats?.activeLearners ?? 0} / ${stats?.totalLearners ?? 0}`}
               helpText="Active / Total"
             />
-            <MetricCard
-              icon={DollarSign}
-              label="Monthly Earnings"
-              value={formatGBP(stats?.monthlyEarnings ?? 0)}
-              change={stats?.earningsChange !== undefined ? `${Math.abs(stats.earningsChange)}%` : undefined}
-              changeType={
-                stats?.earningsChange !== undefined
-                  ? stats.earningsChange >= 0
-                    ? 'increase'
-                    : 'decrease'
-                  : undefined
-              }
-              helpText="vs. last month"
-            />
+            {!isSchoolMember && (
+              <MetricCard
+                icon={DollarSign}
+                label="Monthly Earnings"
+                value={formatGBP(stats?.monthlyEarnings ?? 0)}
+                change={stats?.earningsChange !== undefined ? `${Math.abs(stats.earningsChange)}%` : undefined}
+                changeType={
+                  stats?.earningsChange !== undefined
+                    ? stats.earningsChange >= 0
+                      ? 'increase'
+                      : 'decrease'
+                    : undefined
+                }
+                helpText="vs. last month"
+              />
+            )}
           </>
         )}
       </SimpleGrid>
 
       {/* ── Monthly Earnings History (6 months) ──────────────────────────── */}
-      {isLoading ? (
+      {!isSchoolMember && (isLoading ? (
         <SkeletonCard h="260px" />
       ) : (
         <Card>
@@ -191,11 +208,12 @@ export default function DashboardPage() {
             </Box>
           </CardBody>
         </Card>
-      )}
+      ))}
 
       {/* ── Row 2: Earnings Chart + Today's Schedule ──────────────────────── */}
-      <Grid templateColumns={{ base: '1fr', lg: '3fr 2fr' }} gap={6}>
+      <Grid templateColumns={{ base: '1fr', lg: isSchoolMember ? '1fr' : '3fr 2fr' }} gap={6}>
         {/* Earnings Trend */}
+        {!isSchoolMember && (
         <GridItem>
           {isLoading ? (
             <SkeletonCard h="280px" />
@@ -245,6 +263,7 @@ export default function DashboardPage() {
             </Card>
           )}
         </GridItem>
+        )}
 
         {/* Today's Schedule */}
         <GridItem>
@@ -414,7 +433,7 @@ export default function DashboardPage() {
         )}
 
         {/* Unpaid / Outstanding */}
-        {isLoading ? (
+        {!isSchoolMember && (isLoading ? (
           <SkeletonCard h="200px" />
         ) : (
           <Card>
@@ -464,7 +483,7 @@ export default function DashboardPage() {
               </VStack>
             </CardBody>
           </Card>
-        )}
+        ))}
       </SimpleGrid>
 
       {/* ── Row 4: Upcoming Test Dates + Recent Activity ─────────────────── */}

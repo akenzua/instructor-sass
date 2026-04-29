@@ -8,3 +8,7 @@ export * from "./magic-link-token.schema";
 export * from "./learner-instructor-link.schema";
 export * from "./syllabus.schema";
 export * from "./notification.schema";
+export * from "./school.schema";
+export * from "./school-invitation.schema";
+export * from "./vehicle.schema";
+export * from "./vehicle-assignment.schema";

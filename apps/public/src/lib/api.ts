@@ -4,6 +4,9 @@ import type { Package } from '@acme/shared';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
 
+// Server-side fetches use internal Docker network URL when available
+const SERVER_API_URL = process.env.API_URL || API_URL;
+
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -351,7 +354,7 @@ export async function fetchInstructorByUsername(
   username: string
 ): Promise<PublicInstructor | null> {
   try {
-    const response = await fetch(`${API_URL}/public/instructors/${username}`, {
+    const response = await fetch(`${SERVER_API_URL}/public/instructors/${username}`, {
       next: { revalidate: 60 }, // Revalidate every 60 seconds
     });
     if (!response.ok) {
@@ -367,7 +370,7 @@ export async function fetchInstructorByUsername(
 
 export async function fetchInstructorAvailability(username: string): Promise<DayAvailability[]> {
   try {
-    const response = await fetch(`${API_URL}/public/instructors/${username}/availability`, {
+    const response = await fetch(`${SERVER_API_URL}/public/instructors/${username}/availability`, {
       cache: 'no-store', // Disable caching to always get fresh data
     });
     if (!response.ok) {
@@ -388,7 +391,7 @@ export async function fetchInstructorAvailability(username: string): Promise<Day
 
 export async function fetchInstructorPackages(username: string): Promise<Package[]> {
   try {
-    const url = `${API_URL}/public/instructors/${username}/packages`;
+    const url = `${SERVER_API_URL}/public/instructors/${username}/packages`;
     console.log('Fetching packages from:', url);
     const response = await fetch(url, {
       next: { revalidate: 300 }, // Revalidate every 5 minutes
@@ -413,7 +416,7 @@ export async function fetchInstructorReviews(
 ): Promise<{ items: PublicReview[]; total: number }> {
   try {
     const response = await fetch(
-      `${API_URL}/public/instructors/${username}/reviews?limit=${limit}`,
+      `${SERVER_API_URL}/public/instructors/${username}/reviews?limit=${limit}`,
       { next: { revalidate: 300 } }
     );
     if (!response.ok) return { items: [], total: 0 };

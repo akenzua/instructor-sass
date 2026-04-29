@@ -182,6 +182,8 @@ export default function SettingsPage() {
     );
   }
 
+  const isSchoolMember = !!(instructor as any)?.schoolId;
+
   const publicProfileUrl = formData.username
     ? `https://${formData.username}.indrive.com`
     : null;
@@ -199,9 +201,9 @@ export default function SettingsPage() {
             <Tab><Icon as={User} mr={2} boxSize={4} /> Profile</Tab>
             <Tab><Icon as={Globe} mr={2} boxSize={4} /> Public Page</Tab>
             <Tab><Icon as={DollarSign} mr={2} boxSize={4} /> Services</Tab>
-            <Tab><Icon as={Car} mr={2} boxSize={4} /> Vehicle</Tab>
-            <Tab><Icon as={Settings} mr={2} boxSize={4} /> Business</Tab>
-            <Tab><Icon as={Shield} mr={2} boxSize={4} /> Policies</Tab>
+            {!isSchoolMember && <Tab><Icon as={Car} mr={2} boxSize={4} /> Vehicle</Tab>}
+            {!isSchoolMember && <Tab><Icon as={Settings} mr={2} boxSize={4} /> Business</Tab>}
+            {!isSchoolMember && <Tab><Icon as={Shield} mr={2} boxSize={4} /> Policies</Tab>}
           </TabList>
 
           <TabPanels>
@@ -322,6 +324,8 @@ export default function SettingsPage() {
                         </Alert>
                       )}
 
+                      {!isSchoolMember && (
+                      <>
                       <Divider />
 
                       <FormControl display="flex" alignItems="center" justifyContent="space-between">
@@ -391,6 +395,8 @@ export default function SettingsPage() {
                           }
                         />
                       </FormControl>
+                      </>
+                      )}
                     </VStack>
                   </CardBody>
                 </Card>
@@ -434,6 +440,7 @@ export default function SettingsPage() {
                         </FormHelperText>
                       </FormControl>
 
+                      {!isSchoolMember && (
                       <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                         <FormControl>
                           <FormLabel>Pass Rate (%)</FormLabel>
@@ -461,6 +468,7 @@ export default function SettingsPage() {
                           </NumberInput>
                         </FormControl>
                       </SimpleGrid>
+                      )}
                     </VStack>
                   </CardBody>
                 </Card>
@@ -469,6 +477,15 @@ export default function SettingsPage() {
 
             {/* Services Tab - Lesson Types */}
             <TabPanel px={0}>
+              {isSchoolMember && (
+                <Alert status="info" borderRadius="md" mb={4}>
+                  <AlertIcon />
+                  <Box>
+                    <Text fontWeight="medium">School defaults available</Text>
+                    <Text fontSize="sm">Your school provides default lesson types. You can customise them here to override the school defaults.</Text>
+                  </Box>
+                </Alert>
+              )}
               <Card>
                 <CardHeader>
                   <HStack justify="space-between">
@@ -596,8 +613,8 @@ export default function SettingsPage() {
               </Card>
             </TabPanel>
 
-            {/* Vehicle Tab */}
-            <TabPanel px={0}>
+            {/* Vehicle Tab (solo only) */}
+            {!isSchoolMember && <TabPanel px={0}>
               <Card>
                 <CardHeader>
                   <Heading size="md">Vehicle Information</Heading>
@@ -671,10 +688,10 @@ export default function SettingsPage() {
                   </VStack>
                 </CardBody>
               </Card>
-            </TabPanel>
+            </TabPanel>}
 
-            {/* Business Tab */}
-            <TabPanel px={0}>
+            {/* Business Tab (solo only) */}
+            {!isSchoolMember && <TabPanel px={0}>
               <Card>
                 <CardHeader>
                   <Heading size="md">Business Settings</Heading>
@@ -726,10 +743,10 @@ export default function SettingsPage() {
                   </VStack>
                 </CardBody>
               </Card>
-            </TabPanel>
+            </TabPanel>}
 
-            {/* Cancellation Policy Tab */}
-            <TabPanel px={0}>
+            {/* Cancellation Policy Tab (solo only) */}
+            {!isSchoolMember && <TabPanel px={0}>
               <Card>
                 <CardHeader>
                   <Heading size="md">Cancellation Policy</Heading>
@@ -987,7 +1004,7 @@ export default function SettingsPage() {
                   </VStack>
                 </CardBody>
               </Card>
-            </TabPanel>
+            </TabPanel>}
 
           </TabPanels>
         </Tabs>

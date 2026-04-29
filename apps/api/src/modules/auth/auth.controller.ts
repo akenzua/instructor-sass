@@ -1,6 +1,6 @@
 import { Controller, Post, Get, Put, Body, UseGuards, Request } from "@nestjs/common";
 import { AuthService } from "./auth.service";
-import { SignupDto, LoginDto, MagicLinkDto, VerifyMagicLinkDto, UpdateLearnerProfileDto } from "./dto/auth.dto";
+import { SignupDto, LoginDto, MagicLinkDto, VerifyMagicLinkDto, UpdateLearnerProfileDto, SchoolSignupDto, AcceptInvitationDto } from "./dto/auth.dto";
 import { CompleteProfileDto } from "./dto/complete-profile.dto";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 
@@ -11,6 +11,21 @@ export class AuthController {
   @Post("signup")
   async signup(@Body() dto: SignupDto) {
     return this.authService.signup(dto);
+  }
+
+  @Post("school-signup")
+  async schoolSignup(@Body() dto: SchoolSignupDto) {
+    return this.authService.schoolSignup(dto);
+  }
+
+  @Post("accept-invitation")
+  async acceptInvitation(
+    @Body() dto: AcceptInvitationDto,
+    @Request() req: any,
+  ) {
+    // If user is logged in, use their ID
+    const instructorId = req.user?.id || null;
+    return this.authService.acceptInvitation(dto.token, instructorId);
   }
 
   @Post("login")
