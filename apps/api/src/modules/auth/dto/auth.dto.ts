@@ -29,6 +29,10 @@ export class SignupDto {
   @Min(0)
   @IsOptional()
   hourlyRate?: number;
+
+  @IsString()
+  @IsOptional()
+  currency?: string;
 }
 
 export class LoginDto {
