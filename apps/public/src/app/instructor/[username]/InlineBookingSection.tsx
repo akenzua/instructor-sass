@@ -304,6 +304,11 @@ export function InlineBookingSection({ instructor }: InlineBookingSectionProps) 
   // Get selected lesson type info
   const selectedLessonType = instructor.lessonTypes?.find((l) => l.type === formData.lessonType);
 
+  // Computed display price: use lesson type price if available, else fall back to hourly rate adjusted for duration
+  const lessonPrice = selectedLessonType
+    ? Math.round(selectedLessonType.price * (formData.duration / (selectedLessonType.duration || 60)) * 100) / 100
+    : Math.round((formData.duration / 60) * (instructor.hourlyRate || 0) * 100) / 100;
+
   // Booking mutation
   const bookingMutation = useCreateBooking(instructor.username);
 
@@ -639,7 +644,7 @@ export function InlineBookingSection({ instructor }: InlineBookingSectionProps) 
                   </HStack>
                   <VStack align="end" spacing={0}>
                     <Text fontSize="xl" fontWeight="bold" color="blue.600">
-                      £{selectedLessonType?.price || 0}
+                      £{lessonPrice}
                     </Text>
                     <Button size="xs" variant="link" colorScheme="blue" onClick={() => setStep(1)}>
                       Change
@@ -1009,7 +1014,7 @@ export function InlineBookingSection({ instructor }: InlineBookingSectionProps) 
                       <Text color="gray.600">
                         {formData.lessonType} lesson ({formData.duration} min)
                       </Text>
-                      <Text fontWeight="medium">£{selectedLessonType?.price || 0}</Text>
+                      <Text fontWeight="medium">£{lessonPrice}</Text>
                     </HStack>
                     <Divider />
                     <HStack justify="space-between" w="full">
@@ -1017,7 +1022,7 @@ export function InlineBookingSection({ instructor }: InlineBookingSectionProps) 
                         Total
                       </Text>
                       <Text fontWeight="bold" fontSize="xl" color="blue.600">
-                        £{selectedLessonType?.price || 0}
+                        £{lessonPrice}
                       </Text>
                     </HStack>
                   </VStack>
@@ -1081,7 +1086,7 @@ export function InlineBookingSection({ instructor }: InlineBookingSectionProps) 
                       </Text>
                     </VStack>
                     <Text fontWeight="bold" fontSize="xl" color="blue.600">
-                      £{selectedLessonType?.price || 0}
+                      £{lessonPrice}
                     </Text>
                   </HStack>
                 </CardBody>
@@ -1102,7 +1107,7 @@ export function InlineBookingSection({ instructor }: InlineBookingSectionProps) 
                 }}
               >
                 <PaymentFormInner
-                  price={selectedLessonType?.price || 0}
+                  price={lessonPrice}
                   paymentIntentId={paymentIntentId!}
                   onSuccess={() => setStep(5)}
                   onBack={() => {
@@ -1152,7 +1157,7 @@ export function InlineBookingSection({ instructor }: InlineBookingSectionProps) 
                     <HStack justify="space-between" w="full">
                       <Text fontWeight="semibold">Total Paid</Text>
                       <Text fontWeight="bold" color="green.600">
-                        £{selectedLessonType?.price || 0}
+                        £{lessonPrice}
                       </Text>
                     </HStack>
                   </VStack>

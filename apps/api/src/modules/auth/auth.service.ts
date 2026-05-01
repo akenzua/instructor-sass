@@ -1,4 +1,5 @@
 import { Injectable, UnauthorizedException, ConflictException, NotFoundException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
@@ -32,6 +33,7 @@ export class AuthService {
     private jwtService: JwtService,
     private emailService: EmailService,
     private licenceVerificationService: LicenceVerificationService,
+    private configService: ConfigService,
   ) {}
 
   async signup(dto: SignupDto) {
@@ -122,7 +124,8 @@ export class AuthService {
     console.log(`📝 Stored magic link token in DB for ${email}`);
 
     // Send magic link email
-    const magicLink = `http://localhost:3002/verify?token=${token}`;
+    const learnerAppUrl = this.configService.get<string>('LEARNER_APP_URL', 'http://localhost:3002');
+    const magicLink = `${learnerAppUrl}/verify?token=${token}`;
     await this.emailService.sendMagicLinkEmail(email, magicLink, token);
 
     return { 
