@@ -9,6 +9,8 @@ export function useLessons(params?: LessonQuery) {
     queryKey: ["lessons", params],
     queryFn: () => lessonsApi.getAll(params),
     enabled: true,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 }
 
